@@ -351,6 +351,23 @@ func TestErrorCases(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported document type")
 	})
+
+	t.Run("extremely_malformed_json", func(t *testing.T) {
+		malformedCases := [][]byte{
+			[]byte(`[[[[`),
+			[]byte(`}}}}`),
+			[]byte(`{"key":}`),
+			[]byte(`{"key":,}`),
+			[]byte(`{,}`),
+		}
+
+		for i, malformed := range malformedCases {
+			t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
+				_, err := Merge(malformed, []byte(`{"valid": "patch"}`))
+				assert.Error(t, err, "Should error on malformed JSON bytes")
+			})
+		}
+	})
 }
 
 // TestGenerate tests the Generate function
@@ -445,6 +462,191 @@ func TestValid(t *testing.T) {
 		for i, patch := range invalidPatches {
 			assert.False(t, Valid(patch), "patch %d should be invalid", i)
 		}
+	})
+
+	t.Run("complex_valid_patches", func(t *testing.T) {
+		complexPatches := []any{
+			map[string]any{
+				"nested": map[string]any{
+					"array": []any{1, 2, 3},
+					"null":  nil,
+				},
+			},
+			`{"unicode": "🌍", "special": "key/with/slashes"}`,
+			[]byte(`{"deeply": {"nested": {"object": {"with": "value"}}}}`),
+		}
+
+		for i, patch := range complexPatches {
+			assert.True(t, Valid(patch), "complex patch %d should be valid", i)
+		}
+	})
+}
+
+// TestSophisticatedPatchGeneration tests Generate function with complex transformation scenarios
+func TestSophisticatedPatchGeneration(t *testing.T) {
+	t.Run("collection_transformation_analysis", func(t *testing.T) {
+		initialState := map[string]any{
+			"resources": []any{"server1", "server2", "server3"},
+			"capacity":  100,
+		}
+
+		targetState := map[string]any{
+			"resources": []any{"server4", "server5"},
+			"capacity":  75,
+		}
+
+		transformation, err := Generate(initialState, targetState)
+		require.NoError(t, err)
+
+		anticipatedTransformation := map[string]any{
+			"resources": []any{"server4", "server5"},
+			"capacity":  75,
+		}
+		assert.Equal(t, anticipatedTransformation, transformation)
+
+		// Verify transformation application achieves target state
+		result, err := Merge(initialState, transformation)
+		require.NoError(t, err)
+		assert.Equal(t, targetState, result.Doc)
+	})
+
+	t.Run("datatype_migration_detection", func(t *testing.T) {
+		sourceSchema := map[string]any{
+			"identifier":  "user123",
+			"preferences": map[string]any{"theme": "light"},
+		}
+
+		migratedSchema := map[string]any{
+			"identifier":  12345,
+			"preferences": []any{"dark_mode", "notifications"},
+		}
+
+		migration, err := Generate(sourceSchema, migratedSchema)
+		require.NoError(t, err)
+
+		anticipatedMigration := map[string]any{
+			"identifier":  12345,
+			"preferences": []any{"dark_mode", "notifications"},
+		}
+		assert.Equal(t, anticipatedMigration, migration)
+
+		// Verify migration achieves schema transformation
+		result, err := Merge(sourceSchema, migration)
+		require.NoError(t, err)
+		assert.Equal(t, migratedSchema, result.Doc)
+	})
+
+	t.Run("optimized_differential_generation", func(t *testing.T) {
+		baseConfiguration := map[string]any{
+			"database": map[string]any{
+				"host": "localhost",
+				"port": 5432,
+				"name": "production",
+			},
+			"cache": map[string]any{
+				"enabled": true,
+				"ttl":     3600,
+			},
+			"logging": map[string]any{
+				"level": "info",
+			},
+		}
+
+		updatedConfiguration := map[string]any{
+			"database": map[string]any{
+				"host": "localhost", // Unchanged
+				"port": 5432,        // Unchanged
+				"name": "staging",   // Changed
+				"ssl":  true,        // Added
+			},
+			"cache": map[string]any{
+				"enabled": true, // Unchanged
+				"ttl":     3600, // Unchanged
+			},
+			"logging": map[string]any{
+				"level": "debug",            // Changed
+				"file":  "/var/log/app.log", // Added
+			},
+		}
+
+		differential, err := Generate(baseConfiguration, updatedConfiguration)
+		require.NoError(t, err)
+
+		// Differential should contain only the actual changes
+		expectedDifferential := map[string]any{
+			"database": map[string]any{
+				"name": "staging",
+				"ssl":  true,
+			},
+			"logging": map[string]any{
+				"level": "debug",
+				"file":  "/var/log/app.log",
+			},
+		}
+		assert.Equal(t, expectedDifferential, differential)
+
+		// Verify differential application produces correct result
+		result, err := Merge(baseConfiguration, differential)
+		require.NoError(t, err)
+		assert.Equal(t, updatedConfiguration, result.Doc)
+	})
+}
+
+// TestOperationalReliabilityAndConsistency tests library reliability across diverse usage patterns
+func TestOperationalReliabilityAndConsistency(t *testing.T) {
+	t.Run("sequential_state_transitions", func(t *testing.T) {
+		systemState := map[string]any{"phase": 0}
+
+		// Execute progressive state transitions
+		for phase := 1; phase <= 12; phase++ {
+			transition := map[string]any{"phase": phase}
+			result, err := Merge(systemState, transition)
+			require.NoError(t, err)
+			assert.Equal(t, phase, result.Doc["phase"])
+			systemState = result.Doc
+		}
+	})
+
+	t.Run("deterministic_operation_behavior", func(t *testing.T) {
+		baseDocument := map[string]any{"flag": "enabled", "score": 85}
+		update := map[string]any{"flag": "enabled"} // Identical value
+
+		firstApplication, err := Merge(baseDocument, update)
+		require.NoError(t, err)
+
+		secondApplication, err := Merge(firstApplication.Doc, update)
+		require.NoError(t, err)
+
+		assert.Equal(t, firstApplication.Doc, secondApplication.Doc)
+	})
+
+	t.Run("selective_updates_in_large_datasets", func(t *testing.T) {
+		// Construct extensive dataset with predominantly stable data
+		extensiveDataset := make(map[string]any)
+		for record := 0; record < 1200; record++ {
+			extensiveDataset[fmt.Sprintf("record_%d", record)] = fmt.Sprintf("data_%d", record)
+		}
+		extensiveDataset["activeRecord"] = "initial_state"
+
+		fullDocument := map[string]any{
+			"dataset":    extensiveDataset,
+			"statistics": map[string]any{"totalRecords": 1200},
+		}
+
+		// Minimal update targeting specific nested value
+		update := map[string]any{
+			"dataset": map[string]any{
+				"activeRecord": "updated_state",
+			},
+		}
+
+		result, err := Merge(fullDocument, update)
+		require.NoError(t, err)
+
+		// Verify targeted update was applied successfully
+		dataset := result.Doc["dataset"].(map[string]any)
+		assert.Equal(t, "updated_state", dataset["activeRecord"])
+		assert.Equal(t, "data_0", dataset["record_0"]) // Verify data preservation
 	})
 }
 
@@ -779,6 +981,494 @@ func TestConcurrencyAndImmutability(t *testing.T) {
 			assert.Contains(t, result.Doc, "counter")
 			assert.Contains(t, result.Doc, "id")
 			assert.Equal(t, []string{"a", "b", "c"}, result.Doc["data"])
+		}
+	})
+}
+
+// TestArrayOperations tests common array handling scenarios
+func TestArrayOperations(t *testing.T) {
+	t.Run("shopping_cart_updates", func(t *testing.T) {
+		scenarios := []struct {
+			name     string
+			cart     string
+			update   string
+			expected string
+		}{
+			{
+				name:     "replace_cart_items",
+				cart:     `{"items": ["book", "pen", "notebook"]}`,
+				update:   `{"items": ["laptop", null, "mouse"]}`,
+				expected: `{"items": ["laptop", null, "mouse"]}`,
+			},
+			{
+				name:     "clear_cart",
+				cart:     `{"items": ["phone", "headset", "charger"]}`,
+				update:   `{"items": []}`,
+				expected: `{"items": []}`,
+			},
+			{
+				name:     "remove_cart_field",
+				cart:     `{"quantities": [1, 2, 3]}`,
+				update:   `{"quantities": null}`,
+				expected: `{}`,
+			},
+			{
+				name:     "mixed_item_types",
+				cart:     `{"data": [1, "product", true]}`,
+				update:   `{"data": [false, null, {"name": "new item"}]}`,
+				expected: `{"data": [false, null, {"name": "new item"}]}`,
+			},
+		}
+
+		for _, scenario := range scenarios {
+			t.Run(scenario.name, func(t *testing.T) {
+				result, err := Merge(scenario.cart, scenario.update)
+				require.NoError(t, err)
+				assert.JSONEq(t, scenario.expected, result.Doc)
+			})
+		}
+	})
+
+	t.Run("score_matrix", func(t *testing.T) {
+		original := `{"scores": [[85, 90], [78, 82], [92, 88]]}`
+		update := `{"scores": [[95, 96]]}`
+		expected := `{"scores": [[95, 96]]}`
+
+		result, err := Merge(original, update)
+		require.NoError(t, err)
+		assert.JSONEq(t, expected, result.Doc)
+	})
+
+	t.Run("student_list", func(t *testing.T) {
+		original := `{"students": [{"id": 1, "name": "Alice", "grade": "3rd"}, {"id": 2, "name": "Bob", "grade": "4th"}]}`
+		update := `{"students": [{"id": 3, "name": "Charlie", "grade": "5th"}]}`
+		expected := `{"students": [{"id": 3, "name": "Charlie", "grade": "5th"}]}`
+
+		result, err := Merge(original, update)
+		require.NoError(t, err)
+		assert.JSONEq(t, expected, result.Doc)
+	})
+}
+
+// TestSpecialCharacters tests handling of common special characters and text
+func TestSpecialCharacters(t *testing.T) {
+	t.Run("user_profiles", func(t *testing.T) {
+		testCases := []struct {
+			name     string
+			profile  string
+			update   string
+			expected string
+		}{
+			{
+				name:     "file_path_username",
+				profile:  `{"username": "user/123", "folder": "Documents/Photos"}`,
+				update:   `{"username": "admin/456", "folder": "Documents/Videos"}`,
+				expected: `{"username": "admin/456", "folder": "Documents/Videos"}`,
+			},
+			{
+				name:     "email_and_status",
+				profile:  `{"email": "user@example.com", "status": "online"}`,
+				update:   `{"email": "new@example.com", "bio": "loves coding"}`,
+				expected: `{"email": "new@example.com", "status": "online", "bio": "loves coding"}`,
+			},
+			{
+				name:     "social_media_handles",
+				profile:  `{"twitter": "@oldname"}`,
+				update:   `{"twitter": "@newname", "instagram": "#photography"}`,
+				expected: `{"twitter": "@newname", "instagram": "#photography"}`,
+			},
+			{
+				name:     "multilingual_names",
+				profile:  `{"chinese": "张三", "english": "Tom"}`,
+				update:   `{"chinese": "李四", "japanese": "田中"}`,
+				expected: `{"chinese": "李四", "english": "Tom", "japanese": "田中"}`,
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				result, err := Merge(tc.profile, tc.update)
+				require.NoError(t, err)
+				assert.JSONEq(t, tc.expected, result.Doc)
+			})
+		}
+	})
+
+	t.Run("text_formatting", func(t *testing.T) {
+		original := `{"title": "", "content": " ", "code": "\t", "poem": "\nline1\nline2"}`
+		update := `{"title": "My Article", "emoji": "😊", "quote": "\"Hello World\"", "math": "x² + y² = z²"}`
+		expected := `{"title": "My Article", "content": " ", "code": "\t", "poem": "\nline1\nline2", "emoji": "😊", "quote": "\"Hello World\"", "math": "x² + y² = z²"}`
+
+		result, err := Merge(original, update)
+		require.NoError(t, err)
+		assert.JSONEq(t, expected, result.Doc)
+	})
+}
+
+// TestNestedStructures tests handling of nested document structures
+func TestNestedStructures(t *testing.T) {
+	t.Run("game_levels", func(t *testing.T) {
+		// Build a game with 20 nested levels
+		levels := 20
+		game := make(map[string]any)
+		currentLevel := game
+		for level := 0; level < levels; level++ {
+			nextLevel := make(map[string]any)
+			currentLevel[fmt.Sprintf("level_%d", level+1)] = nextLevel
+			currentLevel = nextLevel
+		}
+		currentLevel["boss"] = "dragon"
+		currentLevel["difficulty"] = "hard"
+
+		// Create an update for the final level
+		update := make(map[string]any)
+		currentLevel = update
+		for level := 0; level < levels; level++ {
+			nextLevel := make(map[string]any)
+			currentLevel[fmt.Sprintf("level_%d", level+1)] = nextLevel
+			currentLevel = nextLevel
+		}
+		currentLevel["boss"] = "super dragon"
+		currentLevel["difficulty"] = "nightmare"
+		currentLevel["reward"] = "legendary sword"
+
+		result, err := Merge(game, update)
+		require.NoError(t, err)
+
+		// Navigate to the final level and verify changes
+		currentLevel = result.Doc
+		for level := 0; level < levels; level++ {
+			currentLevel = currentLevel[fmt.Sprintf("level_%d", level+1)].(map[string]any)
+		}
+		assert.Equal(t, "super dragon", currentLevel["boss"])
+		assert.Equal(t, "nightmare", currentLevel["difficulty"])
+		assert.Equal(t, "legendary sword", currentLevel["reward"])
+	})
+}
+
+// TestLargeDatasets tests performance with large amounts of data
+func TestLargeDatasets(t *testing.T) {
+	t.Run("game_player_settings", func(t *testing.T) {
+		// Build a large player configuration with 500 settings
+		const settingCount = 500
+		playerSettings := make(map[string]any)
+		settingUpdates := make(map[string]any)
+
+		for i := 0; i < settingCount; i++ {
+			playerSettings[fmt.Sprintf("setting_%d", i)] = fmt.Sprintf("default_%d", i)
+			if i%10 == 0 { // Update every 10th setting
+				settingUpdates[fmt.Sprintf("setting_%d", i)] = fmt.Sprintf("new_value_%d", i)
+			}
+		}
+		// Add some new settings
+		for i := settingCount; i < settingCount+30; i++ {
+			settingUpdates[fmt.Sprintf("new_setting_%d", i)] = fmt.Sprintf("value_%d", i)
+		}
+
+		result, err := Merge(playerSettings, settingUpdates)
+		require.NoError(t, err)
+
+		// Verify updates were applied correctly
+		assert.Equal(t, "new_value_0", result.Doc["setting_0"])
+		assert.Equal(t, "default_1", result.Doc["setting_1"]) // Unchanged
+		assert.Equal(t, "value_500", result.Doc["new_setting_500"])
+	})
+
+	t.Run("product_catalog_replacement", func(t *testing.T) {
+		// Create large product catalog
+		const productCount = 5000
+		originalCatalog := make(map[string]any)
+		newCatalog := make(map[string]any)
+
+		largeProductList := make([]any, productCount)
+		for i := 0; i < productCount; i++ {
+			largeProductList[i] = fmt.Sprintf("product_%d", i)
+		}
+		originalCatalog["products"] = largeProductList
+
+		simpleProductList := []any{"featured_item_1", "featured_item_2", "featured_item_3"}
+		newCatalog["products"] = simpleProductList
+
+		result, err := Merge(originalCatalog, newCatalog)
+		require.NoError(t, err)
+		assert.Equal(t, simpleProductList, result.Doc["products"])
+	})
+}
+
+// TestBoundaryConditions tests various extreme and boundary conditions
+func TestBoundaryConditions(t *testing.T) {
+	t.Run("empty_document_cases", func(t *testing.T) {
+		scenarios := []struct {
+			name     string
+			input    any
+			patch    any
+			expected string
+		}{
+			{
+				name:     "empty_string_to_object",
+				input:    "",
+				patch:    `{"status": "active"}`,
+				expected: `{"status":"active"}`,
+			},
+			{
+				name:     "empty_object_to_array",
+				input:    map[string]any{},
+				patch:    []any{"item1", "item2", "item3"},
+				expected: `["item1","item2","item3"]`,
+			},
+			{
+				name:     "null_to_object",
+				input:    nil,
+				patch:    map[string]any{"created": true},
+				expected: `{"created":true}`,
+			},
+		}
+
+		for _, scenario := range scenarios {
+			t.Run(scenario.name, func(t *testing.T) {
+				result, err := Merge(scenario.input, scenario.patch)
+				require.NoError(t, err)
+
+				// Serialize result for verification
+				var resultJSON string
+				switch output := result.Doc.(type) {
+				case string:
+					resultJSON = output
+				default:
+					data, err := json.Marshal(output)
+					require.NoError(t, err)
+					resultJSON = string(data)
+				}
+				assert.JSONEq(t, scenario.expected, resultJSON)
+			})
+		}
+	})
+
+	t.Run("number_precision", func(t *testing.T) {
+		base := `{"maxFloat": 1.7976931348623157e+308, "maxInt": 9223372036854775807, "minInt": -9223372036854775808}`
+		changes := `{"maxFloat": 2.2250738585072014e-308, "maxInt": -9223372036854775808, "precision": 0.123456789}`
+		expected := `{"maxFloat": 2.2250738585072014e-308, "maxInt": -9223372036854775808, "minInt": -9223372036854775808, "precision": 0.123456789}`
+
+		result, err := Merge(base, changes)
+		require.NoError(t, err)
+		assert.JSONEq(t, expected, result.Doc)
+	})
+
+	t.Run("boolean_and_null_values", func(t *testing.T) {
+		base := `{"enabled": true, "disabled": false, "missing": null}`
+		changes := `{"enabled": false, "missing": "present", "disabled": null, "added": true}`
+		expected := `{"enabled": false, "missing": "present", "added": true}`
+
+		result, err := Merge(base, changes)
+		require.NoError(t, err)
+		assert.JSONEq(t, expected, result.Doc)
+	})
+}
+
+// TestJSONCompatibility tests compatibility across different JSON processing scenarios
+func TestJSONCompatibility(t *testing.T) {
+	t.Run("json_roundtrip", func(t *testing.T) {
+		// Verify merge results maintain consistency through JSON serialization cycles
+		originalData := map[string]any{
+			"score":    85.5,
+			"player":   "alex",
+			"online":   true,
+			"metadata": nil,
+			"stats":    map[string]any{"level": "beginner"},
+			"items":    []any{1, "sword", 99.9},
+		}
+
+		updateData := map[string]any{
+			"score": 92.3,
+			"rank":  "advanced",
+			"stats": map[string]any{"experience": "1000"},
+		}
+
+		result, err := Merge(originalData, updateData)
+		require.NoError(t, err)
+
+		// Serialize and deserialize the result
+		jsonBytes, err := json.Marshal(result.Doc)
+		require.NoError(t, err)
+
+		var reconstructed map[string]any
+		err = json.Unmarshal(jsonBytes, &reconstructed)
+		require.NoError(t, err)
+
+		// Verify the data types are preserved correctly
+		assert.Equal(t, float64(92.3), reconstructed["score"]) // JSON converts to float64
+		assert.Equal(t, "advanced", reconstructed["rank"])
+		assert.Equal(t, "alex", reconstructed["player"])
+	})
+
+	t.Run("data_type_handling", func(t *testing.T) {
+		// Verify different JSON data types are handled correctly
+		testCases := []struct {
+			name     string
+			base     string
+			update   string
+			expected string
+		}{
+			{
+				name:     "number_handling",
+				base:     `{"count": 789, "rate": 12.34}`,
+				update:   `{"count": 999}`,
+				expected: `{"count": 999, "rate": 12.34}`,
+			},
+			{
+				name:     "boolean_handling",
+				base:     `{"valid": true, "expired": false}`,
+				update:   `{"category": "premium"}`,
+				expected: `{"valid": true, "expired": false, "category": "premium"}`,
+			},
+			{
+				name:     "empty_containers",
+				base:     `{"options": {}, "list": []}`,
+				update:   `{"options": {"theme": "dark"}}`,
+				expected: `{"options": {"theme": "dark"}, "list": []}`,
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				result, err := Merge(tc.base, tc.update)
+				require.NoError(t, err)
+				assert.JSONEq(t, tc.expected, result.Doc)
+			})
+		}
+	})
+
+	t.Run("special_key_formats", func(t *testing.T) {
+		// Test keys with special characters (like JSON Pointer syntax)
+		base := `{"/api/v2/users": "endpoint", "~setting": "value"}`
+		update := `{"/api/v2/users": "updated", "/cache/ttl": "3600"}`
+		expected := `{"/api/v2/users": "updated", "~setting": "value", "/cache/ttl": "3600"}`
+
+		result, err := Merge(base, update)
+		require.NoError(t, err)
+		assert.JSONEq(t, expected, result.Doc)
+	})
+
+	t.Run("formatting_independence", func(t *testing.T) {
+		// Verify JSON formatting variations don't impact merge behavior
+		compactDoc := `{"version":1,"mode":"production"}`
+		formattedDoc := `{
+			"version": 1,
+			"mode": "production"
+		}`
+		update := `{"status": "ready"}`
+
+		result1, err := Merge(compactDoc, update)
+		require.NoError(t, err)
+
+		result2, err := Merge(formattedDoc, update)
+		require.NoError(t, err)
+
+		// Results should be functionally equivalent regardless of formatting
+		assert.JSONEq(t, result1.Doc, result2.Doc)
+	})
+}
+
+// TestPerformanceAndStressConditions tests library behavior under demanding scenarios
+func TestPerformanceAndStressConditions(t *testing.T) {
+	t.Run("hierarchical_structure_efficiency", func(t *testing.T) {
+		// Test performance with complex hierarchical structures
+		const treeDepth = 90
+
+		// Build hierarchical organization structure
+		organization := make(map[string]any)
+		currentNode := organization
+		for tier := 0; tier < treeDepth; tier++ {
+			nextNode := make(map[string]any)
+			currentNode["branch"] = nextNode
+			currentNode["info"] = fmt.Sprintf("tier_%d", tier)
+			currentNode = nextNode
+		}
+		currentNode["endpoint"] = "original_value"
+
+		// Create restructuring update
+		restructure := make(map[string]any)
+		currentNode = restructure
+		for tier := 0; tier < treeDepth; tier++ {
+			nextNode := make(map[string]any)
+			currentNode["branch"] = nextNode
+			currentNode = nextNode
+		}
+		currentNode["endpoint"] = "restructured_value"
+
+		// Monitor execution time
+		start := time.Now()
+		result, err := Merge(organization, restructure)
+		elapsed := time.Since(start)
+
+		require.NoError(t, err)
+
+		// Navigate to verify the hierarchical change
+		currentNode = result.Doc
+		for tier := 0; tier < treeDepth; tier++ {
+			currentNode = currentNode["branch"].(map[string]any)
+		}
+		assert.Equal(t, "restructured_value", currentNode["endpoint"])
+
+		// Performance requirement (< 90ms for this complexity)
+		assert.Less(t, elapsed, 90*time.Millisecond, "Hierarchical merge took %v, exceeds threshold", elapsed)
+	})
+
+	t.Run("extensive_property_handling", func(t *testing.T) {
+		// Test performance with extensive property collections
+		const propertyCount = 4000
+
+		inventory := make(map[string]any)
+		updates := make(map[string]any)
+
+		// Build extensive property inventory
+		for prop := 0; prop < propertyCount; prop++ {
+			inventory[fmt.Sprintf("property_%d", prop)] = fmt.Sprintf("original_%d", prop)
+			if prop%80 == 0 { // Update every 80th property
+				updates[fmt.Sprintf("property_%d", prop)] = fmt.Sprintf("revised_%d", prop)
+			}
+		}
+
+		start := time.Now()
+		result, err := Merge(inventory, updates)
+		elapsed := time.Since(start)
+
+		require.NoError(t, err)
+		assert.Equal(t, "revised_0", result.Doc["property_0"])
+		assert.Equal(t, "original_1", result.Doc["property_1"]) // Unchanged
+
+		// Should handle extensive properties efficiently
+		assert.Less(t, elapsed, 45*time.Millisecond, "Extensive property merge took %v, exceeds threshold", elapsed)
+	})
+
+	t.Run("sequential_operations_stability", func(t *testing.T) {
+		// Test stability of sequential merge operations
+		baseState := map[string]any{"sequence": 0, "metadata": "persistent"}
+
+		const operationCount = 800
+		var checkpoints []map[string]any
+
+		currentState := baseState
+		for operation := 1; operation <= operationCount; operation++ {
+			modification := map[string]any{"sequence": operation}
+			result, err := Merge(currentState, modification)
+			require.NoError(t, err)
+
+			currentState = result.Doc
+			if operation%150 == 0 { // Checkpoint every 150th operation
+				checkpoints = append(checkpoints, currentState)
+			}
+		}
+
+		// Verify final state integrity
+		assert.Equal(t, operationCount, currentState["sequence"])
+		assert.Equal(t, "persistent", currentState["metadata"])
+
+		// Verify checkpoint consistency
+		for i, checkpoint := range checkpoints {
+			expectedSequence := (i + 1) * 150
+			assert.Equal(t, expectedSequence, checkpoint["sequence"])
+			assert.Equal(t, "persistent", checkpoint["metadata"])
 		}
 	})
 }
