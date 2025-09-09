@@ -1,11 +1,11 @@
 module github.com/kaptinlin/jsonmerge
 
-go 1.23
+go 1.24
 
 toolchain go1.24.3
 
 require (
-	github.com/go-json-experiment/json v0.0.0-20240815175050-ebd3a8989ca1
+	github.com/go-json-experiment/json v0.0.0-20250813233538-9b1f9ea2e11b
 	github.com/kaptinlin/deepclone v0.1.0
 )
 
