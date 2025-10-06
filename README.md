@@ -248,14 +248,13 @@ goarch: arm64
 pkg: github.com/kaptinlin/jsonmerge
 cpu: Apple M3
 
-BenchmarkMerge-8                 1290456      920 ns/op    1273 B/op   17 allocs/op
-BenchmarkMergeWithMutate-8       3509066      355 ns/op     345 B/op    4 allocs/op  
-BenchmarkGenerate-8              1436236      835 ns/op     784 B/op   16 allocs/op
-BenchmarkMergeStructs-8           216622     5730 ns/op    4377 B/op   81 allocs/op
-BenchmarkMergeJSONStrings-8       293143     4225 ns/op    3872 B/op   78 allocs/op
-BenchmarkMergeJSONBytes-8         304899     3910 ns/op    3543 B/op   75 allocs/op
-BenchmarkMergeDeepNesting-8      1254697      956 ns/op    2025 B/op   14 allocs/op
-BenchmarkMergeLargeArrays-8         2745   433348 ns/op  672770 B/op 10026 allocs/op
+BenchmarkMerge-8                  952150     1357 ns/op    1273 B/op   17 allocs/op
+BenchmarkMergeWithMutate-8       2400202      466 ns/op     345 B/op    4 allocs/op
+BenchmarkMergeStructs-8           154684     8722 ns/op    3993 B/op   78 allocs/op
+BenchmarkMergeJSONStrings-8       246922     5458 ns/op    3743 B/op   77 allocs/op
+BenchmarkMergeJSONBytes-8         206040     5934 ns/op    3416 B/op   74 allocs/op
+BenchmarkMergeDeepNesting-8       873924     1288 ns/op    2025 B/op   14 allocs/op
+BenchmarkMergeLargeArrays-8         1978   625293 ns/op  672759 B/op 10026 allocs/op
 ```
 
 ### Performance Tips
@@ -310,21 +309,31 @@ result, err := jsonmerge.Merge(config, patch)
 
 ### Error Handling
 
+The library provides sentinel errors for error checking with `errors.Is()`:
+
 ```go
 result, err := jsonmerge.Merge(target, patch)
 if err != nil {
     switch {
     case errors.Is(err, jsonmerge.ErrInvalidJSON):
-        // Handle invalid JSON
-    case errors.Is(err, jsonmerge.ErrUnsupportedType):
-        // Handle unsupported type
-    case errors.Is(err, jsonmerge.ErrConversionFailed):
+        // Handle invalid JSON input
+    case errors.Is(err, jsonmerge.ErrMarshal):
+        // Handle JSON marshaling errors
+    case errors.Is(err, jsonmerge.ErrUnmarshal):
+        // Handle JSON unmarshaling errors
+    case errors.Is(err, jsonmerge.ErrConversion):
         // Handle type conversion errors
     default:
         // Handle other errors
     }
 }
 ```
+
+**Sentinel Errors:**
+- `ErrInvalidJSON` - Invalid JSON input
+- `ErrMarshal` - JSON marshaling failed
+- `ErrUnmarshal` - JSON unmarshaling failed
+- `ErrConversion` - Type conversion failed
 
 ### Validation
 

@@ -27,15 +27,20 @@ import (
 	"github.com/kaptinlin/deepclone"
 )
 
-// Predefined errors - Define merge-specific errors clearly
+// Sentinel errors for error checking with errors.Is.
+// These errors can be checked using errors.Is() to determine the type of failure.
 var (
-	ErrUnsupportedType       = errors.New("unsupported document type")
-	ErrMergeFailed           = errors.New("merge operation failed")
-	ErrInvalidJSON           = errors.New("invalid JSON document")
-	ErrConversionFailed      = errors.New("type conversion failed")
-	ErrMarshalFailed         = errors.New("JSON marshal operation failed")
-	ErrUnmarshalFailed       = errors.New("JSON unmarshal operation failed")
-	ErrPatchGenerationFailed = errors.New("patch generation failed")
+	// ErrInvalidJSON indicates the input is not valid JSON.
+	ErrInvalidJSON = errors.New("invalid JSON")
+
+	// ErrMarshal indicates JSON marshaling failed.
+	ErrMarshal = errors.New("marshal failed")
+
+	// ErrUnmarshal indicates JSON unmarshaling failed.
+	ErrUnmarshal = errors.New("unmarshal failed")
+
+	// ErrConversion indicates type conversion between document types failed.
+	ErrConversion = errors.New("type conversion failed")
 )
 
 // Merge applies a JSON Merge Patch (RFC 7386) to a target document.
@@ -51,12 +56,12 @@ func Merge[T Document](target, patch T, opts ...Option) (*Result[T], error) {
 	// Convert inputs to interface{} for processing
 	targetInterface, err := convertToInterface(target)
 	if err != nil {
-		return nil, fmt.Errorf("%w: failed to convert target document: %w", ErrUnsupportedType, err)
+		return nil, fmt.Errorf("convert target: %w", err)
 	}
 
 	patchInterface, err := convertToInterface(patch)
 	if err != nil {
-		return nil, fmt.Errorf("%w: failed to convert patch document: %w", ErrUnsupportedType, err)
+		return nil, fmt.Errorf("convert patch: %w", err)
 	}
 
 	// Clone target if not mutating
@@ -70,7 +75,7 @@ func Merge[T Document](target, patch T, opts ...Option) (*Result[T], error) {
 	// Convert back to original type
 	result, err := convertFromInterface[T](merged)
 	if err != nil {
-		return nil, fmt.Errorf("%w: failed to convert merged result: %w", ErrConversionFailed, err)
+		return nil, fmt.Errorf("convert result: %w", err)
 	}
 
 	return &Result[T]{
@@ -84,12 +89,12 @@ func Generate[T Document](source, target T) (T, error) {
 	// Convert inputs to interface{} for processing
 	sourceInterface, err := convertToInterface(source)
 	if err != nil {
-		return *new(T), fmt.Errorf("%w: failed to convert source document: %w", ErrUnsupportedType, err)
+		return *new(T), fmt.Errorf("convert source: %w", err)
 	}
 
 	targetInterface, err := convertToInterface(target)
 	if err != nil {
-		return *new(T), fmt.Errorf("%w: failed to convert target document: %w", ErrUnsupportedType, err)
+		return *new(T), fmt.Errorf("convert target: %w", err)
 	}
 
 	// Generate patch
@@ -98,7 +103,7 @@ func Generate[T Document](source, target T) (T, error) {
 	// Convert back to original type
 	result, err := convertFromInterface[T](patch)
 	if err != nil {
-		return *new(T), fmt.Errorf("%w: failed to convert generated patch: %w", ErrPatchGenerationFailed, err)
+		return *new(T), fmt.Errorf("convert patch: %w", err)
 	}
 
 	return result, nil
@@ -216,7 +221,7 @@ func convertToInterface[T Document](doc T) (interface{}, error) {
 	case []byte:
 		var result interface{}
 		if err := json.Unmarshal(typed, &result); err != nil {
-			return nil, fmt.Errorf("%w: failed to unmarshal JSON bytes: %w", ErrInvalidJSON, err)
+			return nil, fmt.Errorf("%w: %w", ErrUnmarshal, err)
 		}
 		return result, nil
 
@@ -242,12 +247,12 @@ func convertToInterface[T Document](doc T) (interface{}, error) {
 		// For struct types, marshal then unmarshal to get map[string]interface{}
 		data, err := json.Marshal(typed)
 		if err != nil {
-			return nil, fmt.Errorf("%w: failed to marshal document to JSON: %w", ErrMarshalFailed, err)
+			return nil, fmt.Errorf("%w: %w", ErrMarshal, err)
 		}
 
 		var result interface{}
 		if err := json.Unmarshal(data, &result); err != nil {
-			return nil, fmt.Errorf("%w: failed to unmarshal document from JSON: %w", ErrUnmarshalFailed, err)
+			return nil, fmt.Errorf("%w: %w", ErrUnmarshal, err)
 		}
 		return result, nil
 	}
@@ -262,7 +267,7 @@ func convertFromInterface[T Document](val interface{}) (T, error) {
 		// Convert to JSON bytes
 		data, err := json.Marshal(val)
 		if err != nil {
-			return zero, fmt.Errorf("%w: failed to marshal value to bytes: %w", ErrMarshalFailed, err)
+			return zero, fmt.Errorf("%w: %w", ErrMarshal, err)
 		}
 		return any(data).(T), nil
 
@@ -270,7 +275,7 @@ func convertFromInterface[T Document](val interface{}) (T, error) {
 		// Convert to JSON string
 		data, err := json.Marshal(val)
 		if err != nil {
-			return zero, fmt.Errorf("%w: failed to marshal value to string: %w", ErrMarshalFailed, err)
+			return zero, fmt.Errorf("%w: %w", ErrMarshal, err)
 		}
 		return any(string(data)).(T), nil
 
@@ -278,18 +283,18 @@ func convertFromInterface[T Document](val interface{}) (T, error) {
 		if m, ok := val.(map[string]interface{}); ok {
 			return any(m).(T), nil
 		}
-		return zero, fmt.Errorf("%w: expected map[string]interface{}, got %T", ErrConversionFailed, val)
+		return zero, fmt.Errorf("%w: expected map[string]interface{}, got %T", ErrConversion, val)
 
 	default:
 		// For struct types, marshal then unmarshal to target type
 		data, err := json.Marshal(val)
 		if err != nil {
-			return zero, fmt.Errorf("%w: failed to marshal value for struct conversion: %w", ErrMarshalFailed, err)
+			return zero, fmt.Errorf("%w: %w", ErrMarshal, err)
 		}
 
 		var target T
 		if err := json.Unmarshal(data, &target); err != nil {
-			return zero, fmt.Errorf("%w: failed to unmarshal value to target struct type: %w", ErrUnmarshalFailed, err)
+			return zero, fmt.Errorf("%w: %w", ErrUnmarshal, err)
 		}
 		return target, nil
 	}

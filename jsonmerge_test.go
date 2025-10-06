@@ -1,8 +1,8 @@
 package jsonmerge
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/go-json-experiment/json"
 	"testing"
 	"time"
 
@@ -349,7 +349,7 @@ func TestErrorCases(t *testing.T) {
 		// Invalid JSON bytes should still cause an error
 		_, err := Merge(invalidBytes, patch)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "unsupported document type")
+		assert.Contains(t, err.Error(), "unmarshal")
 	})
 
 	t.Run("extremely_malformed_json", func(t *testing.T) {

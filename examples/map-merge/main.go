@@ -1,8 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/go-json-experiment/json"
+	"github.com/go-json-experiment/json/jsontext"
 	"log"
 
 	"github.com/kaptinlin/jsonmerge"
@@ -53,6 +54,6 @@ func main() {
 }
 
 func prettyJSON(v any) string {
-	data, _ := json.MarshalIndent(v, "", "  ")
+	data, _ := json.Marshal(v, jsontext.Multiline(true))
 	return string(data)
 }
