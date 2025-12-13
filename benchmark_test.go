@@ -28,7 +28,7 @@ func BenchmarkMerge(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := Merge(target, patch)
 		if err != nil {
 			b.Fatal(err)
@@ -60,7 +60,7 @@ func BenchmarkMergeWithMutate(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		// Create a fresh copy for each iteration since we're mutating
 		target := make(map[string]interface{})
 		for k, v := range originalTarget {
@@ -95,7 +95,7 @@ func BenchmarkGenerate(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := Generate(original, updated)
 		if err != nil {
 			b.Fatal(err)
@@ -134,7 +134,7 @@ func BenchmarkMergeStructs(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := Merge(target, patch)
 		if err != nil {
 			b.Fatal(err)
@@ -148,7 +148,7 @@ func BenchmarkMergeJSONStrings(b *testing.B) {
 	patch := `{"name":"Jane","nested":{"value":100,"new":"field"},"email":"jane@example.com"}`
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := Merge(target, patch)
 		if err != nil {
 			b.Fatal(err)
@@ -162,7 +162,7 @@ func BenchmarkMergeJSONBytes(b *testing.B) {
 	patch := []byte(`{"name":"Jane","nested":{"value":100,"new":"field"},"email":"jane@example.com"}`)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := Merge(target, patch)
 		if err != nil {
 			b.Fatal(err)
@@ -202,7 +202,7 @@ func BenchmarkMergeDeepNesting(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := Merge(target, patch)
 		if err != nil {
 			b.Fatal(err)
@@ -212,9 +212,9 @@ func BenchmarkMergeDeepNesting(b *testing.B) {
 
 // BenchmarkMergeLargeArrays benchmarks merge operations with large arrays
 func BenchmarkMergeLargeArrays(b *testing.B) {
-	// Create a large array
+	// Create a large array using Go 1.22 for range N
 	largeArray := make([]interface{}, 1000)
-	for i := range largeArray {
+	for i := range 1000 {
 		largeArray[i] = map[string]interface{}{
 			"id":    i,
 			"value": i * 2,
@@ -235,7 +235,7 @@ func BenchmarkMergeLargeArrays(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := Merge(target, patch)
 		if err != nil {
 			b.Fatal(err)

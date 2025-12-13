@@ -1,10 +1,10 @@
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/go-json-experiment/json v0.0.0-20250910080747-cc2cfa0554c3 h1:02WINGfSX5w0Mn+F28UyRoSt9uvMhKguwWMlOAh6U/0=
-github.com/go-json-experiment/json v0.0.0-20250910080747-cc2cfa0554c3/go.mod h1:uNVvRXArCGbZ508SxYYTC5v1JWoz2voff5pm25jU1Ok=
-github.com/kaptinlin/deepclone v0.2.0 h1:K7Gou+JD7Yk4wh+p2WAwD3Pel/5dl6TmMmHW6zM9Q+U=
-github.com/kaptinlin/deepclone v0.2.0/go.mod h1:S/bgnS0AceLZxDHEqxNJqJPw2nITbi59J6hneoPVp6Y=
+github.com/go-json-experiment/json v0.0.0-20251027170946-4849db3c2f7e h1:Lf/gRkoycfOBPa42vU2bbgPurFong6zXeFtPoxholzU=
+github.com/go-json-experiment/json v0.0.0-20251027170946-4849db3c2f7e/go.mod h1:uNVvRXArCGbZ508SxYYTC5v1JWoz2voff5pm25jU1Ok=
+github.com/kaptinlin/deepclone v0.2.1 h1:1/gEg5jtUxFSRfsrWFDOE1RMqbCVjDVQCzH92nDFSjg=
+github.com/kaptinlin/deepclone v0.2.1/go.mod h1:S/bgnS0AceLZxDHEqxNJqJPw2nITbi59J6hneoPVp6Y=
 github.com/kr/pretty v0.2.1/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfnI=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/pretty v0.3.1/go.mod h1:hoEshYVHaxMs3cyo3Yncou5ZscifuDolrwPKZanG3xk=
