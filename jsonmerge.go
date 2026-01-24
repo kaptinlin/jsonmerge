@@ -28,7 +28,6 @@ import (
 )
 
 // Sentinel errors for error checking with errors.Is.
-// These errors can be checked using errors.Is() to determine the type of failure.
 var (
 	// ErrInvalidJSON indicates the input is not valid JSON.
 	ErrInvalidJSON = errors.New("invalid JSON")
@@ -165,20 +164,26 @@ func generatePatch(source, target interface{}) interface{} {
 
 	// Add fields that exist in target
 	for key, targetValue := range targetObj {
-		if sourceValue, exists := sourceObj[key]; exists {
-			// Field exists in both - check if they need merging
-			if isObject(sourceValue) && isObject(targetValue) {
-				// Both are objects - recursive patch generation
-				nestedPatch := generatePatch(sourceValue, targetValue)
-				if nestedPatch != nil && len(nestedPatch.(map[string]interface{})) > 0 {
-					patch[key] = nestedPatch
-				}
-			} else if !deepEqual(sourceValue, targetValue) {
-				// Values are different - include in patch
-				patch[key] = targetValue
-			}
-		} else {
+		sourceValue, exists := sourceObj[key]
+		if !exists {
 			// Field only exists in target - add it
+			patch[key] = targetValue
+			continue
+		}
+
+		// Field exists in both - check if they need merging
+		if isObject(sourceValue) && isObject(targetValue) {
+			// Both are objects - recursive patch generation
+			nestedPatch := generatePatch(sourceValue, targetValue)
+			// Safe type assertion with length check
+			if m, ok := nestedPatch.(map[string]interface{}); ok && len(m) > 0 {
+				patch[key] = nestedPatch
+			}
+			continue
+		}
+
+		if !deepEqual(sourceValue, targetValue) {
+			// Values are different - include in patch
 			patch[key] = targetValue
 		}
 	}
@@ -234,13 +239,7 @@ func convertToInterface[T Document](doc T) (interface{}, error) {
 		// If it's not valid JSON, treat it as a raw string value
 		return typed, nil
 
-	case map[string]any:
-		return typed, nil
-
-	case nil:
-		return nil, nil
-
-	case bool, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+	case map[string]any, nil, bool, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
 		return typed, nil
 
 	default:
