@@ -315,8 +315,6 @@ The library provides sentinel errors for error checking with `errors.Is()`:
 result, err := jsonmerge.Merge(target, patch)
 if err != nil {
     switch {
-    case errors.Is(err, jsonmerge.ErrInvalidJSON):
-        // Handle invalid JSON input
     case errors.Is(err, jsonmerge.ErrMarshal):
         // Handle JSON marshaling errors
     case errors.Is(err, jsonmerge.ErrUnmarshal):
@@ -330,7 +328,6 @@ if err != nil {
 ```
 
 **Sentinel Errors:**
-- `ErrInvalidJSON` - Invalid JSON input
 - `ErrMarshal` - JSON marshaling failed
 - `ErrUnmarshal` - JSON unmarshaling failed
 - `ErrConversion` - Type conversion failed

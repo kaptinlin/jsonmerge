@@ -6,20 +6,20 @@ import (
 
 // BenchmarkMerge benchmarks the merge operation
 func BenchmarkMerge(b *testing.B) {
-	target := map[string]interface{}{
+	target := map[string]any{
 		"name": "John",
-		"nested": map[string]interface{}{
-			"deep": map[string]interface{}{
+		"nested": map[string]any{
+			"deep": map[string]any{
 				"value": 42,
-				"array": []interface{}{1, 2, 3, 4, 5},
+				"array": []any{1, 2, 3, 4, 5},
 			},
 		},
 		"tags": []string{"developer", "golang", "json"},
 	}
-	patch := map[string]interface{}{
+	patch := map[string]any{
 		"name": "Jane",
-		"nested": map[string]interface{}{
-			"deep": map[string]interface{}{
+		"nested": map[string]any{
+			"deep": map[string]any{
 				"value": 100,
 				"new":   "field",
 			},
@@ -38,20 +38,20 @@ func BenchmarkMerge(b *testing.B) {
 
 // BenchmarkMergeWithMutate benchmarks the merge operation with mutation
 func BenchmarkMergeWithMutate(b *testing.B) {
-	originalTarget := map[string]interface{}{
+	originalTarget := map[string]any{
 		"name": "John",
-		"nested": map[string]interface{}{
-			"deep": map[string]interface{}{
+		"nested": map[string]any{
+			"deep": map[string]any{
 				"value": 42,
-				"array": []interface{}{1, 2, 3, 4, 5},
+				"array": []any{1, 2, 3, 4, 5},
 			},
 		},
 		"tags": []string{"developer", "golang", "json"},
 	}
-	patch := map[string]interface{}{
+	patch := map[string]any{
 		"name": "Jane",
-		"nested": map[string]interface{}{
-			"deep": map[string]interface{}{
+		"nested": map[string]any{
+			"deep": map[string]any{
 				"value": 100,
 				"new":   "field",
 			},
@@ -62,7 +62,7 @@ func BenchmarkMergeWithMutate(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		// Create a fresh copy for each iteration since we're mutating
-		target := make(map[string]interface{})
+		target := make(map[string]any)
 		for k, v := range originalTarget {
 			target[k] = v
 		}
@@ -76,18 +76,18 @@ func BenchmarkMergeWithMutate(b *testing.B) {
 
 // BenchmarkGenerate benchmarks the Generate function
 func BenchmarkGenerate(b *testing.B) {
-	original := map[string]interface{}{
+	original := map[string]any{
 		"name": "John",
 		"age":  30,
-		"nested": map[string]interface{}{
+		"nested": map[string]any{
 			"value": 42,
 		},
 	}
 
-	updated := map[string]interface{}{
+	updated := map[string]any{
 		"name": "Jane",
 		"age":  30,
-		"nested": map[string]interface{}{
+		"nested": map[string]any{
 			"value": 100,
 			"new":   "field",
 		},
@@ -172,12 +172,12 @@ func BenchmarkMergeJSONBytes(b *testing.B) {
 
 // BenchmarkMergeDeepNesting benchmarks merge operations with deeply nested structures
 func BenchmarkMergeDeepNesting(b *testing.B) {
-	target := map[string]interface{}{
-		"level1": map[string]interface{}{
-			"level2": map[string]interface{}{
-				"level3": map[string]interface{}{
-					"level4": map[string]interface{}{
-						"level5": map[string]interface{}{
+	target := map[string]any{
+		"level1": map[string]any{
+			"level2": map[string]any{
+				"level3": map[string]any{
+					"level4": map[string]any{
+						"level5": map[string]any{
 							"value": "original",
 						},
 					},
@@ -186,12 +186,12 @@ func BenchmarkMergeDeepNesting(b *testing.B) {
 		},
 	}
 
-	patch := map[string]interface{}{
-		"level1": map[string]interface{}{
-			"level2": map[string]interface{}{
-				"level3": map[string]interface{}{
-					"level4": map[string]interface{}{
-						"level5": map[string]interface{}{
+	patch := map[string]any{
+		"level1": map[string]any{
+			"level2": map[string]any{
+				"level3": map[string]any{
+					"level4": map[string]any{
+						"level5": map[string]any{
 							"value": "updated",
 							"new":   "field",
 						},
@@ -213,21 +213,21 @@ func BenchmarkMergeDeepNesting(b *testing.B) {
 // BenchmarkMergeLargeArrays benchmarks merge operations with large arrays
 func BenchmarkMergeLargeArrays(b *testing.B) {
 	// Create a large array using Go 1.22 for range N
-	largeArray := make([]interface{}, 1000)
+	largeArray := make([]any, 1000)
 	for i := range 1000 {
-		largeArray[i] = map[string]interface{}{
+		largeArray[i] = map[string]any{
 			"id":    i,
 			"value": i * 2,
 		}
 	}
 
-	target := map[string]interface{}{
+	target := map[string]any{
 		"data": largeArray,
 	}
 
-	patch := map[string]interface{}{
-		"data": []interface{}{
-			map[string]interface{}{
+	patch := map[string]any{
+		"data": []any{
+			map[string]any{
 				"id":    0,
 				"value": 999,
 			},

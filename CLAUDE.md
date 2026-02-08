@@ -71,7 +71,7 @@ go test -bench=BenchmarkMerge -run=^$
 
 ### Core Implementation Philosophy
 
-**RFC 7386 First**: Every implementation decision prioritizes RFC 7386 compliance. The algorithm in `mergePatch()` (jsonmerge.go:116-143) directly implements RFC 7386 Section 2.
+**RFC 7386 First**: Every implementation decision prioritizes RFC 7386 compliance. The algorithm in `applyPatch()` (jsonmerge.go:132-163) directly implements RFC 7386 Section 2.
 
 **Type Safety Through Generics**: Uses Go 1.25+ generics with `Document` interface constraint to provide compile-time type safety while supporting multiple document types (structs, maps, JSON bytes, JSON strings).
 
@@ -96,10 +96,10 @@ type Document interface {
 - **string**: JSON strings or raw string values
 - **Primitives**: Direct support for bool, int variants, float variants
 
-#### 2. Core Algorithm (jsonmerge.go:116-143)
+#### 2. Core Algorithm (jsonmerge.go:132-163)
 
 ```go
-func mergePatch(target, patch interface{}) interface{}
+func applyPatch(target, patch any) any
 ```
 
 **RFC 7386 Implementation**:
@@ -115,21 +115,21 @@ func mergePatch(target, patch interface{}) interface{}
 - `null` values delete fields
 - Non-objects replace target values completely
 
-#### 3. Type Conversion System (jsonmerge.go:212-296)
+#### 3. Type Conversion System (jsonmerge.go:239-321)
 
-**convertToInterface[T Document]**: Converts any Document type to `interface{}` for processing
+**convertToInterface[T Document]**: Converts any Document type to `any` for processing
 - Direct passthrough for `map[string]any`
 - JSON unmarshal for `[]byte` and valid JSON strings
 - Marshal→Unmarshal cycle for structs
 
-**convertFromInterface[T Document]**: Converts `interface{}` back to original type
+**convertFromInterface[T Document]**: Converts `any` back to original type
 - Preserves type through generic parameter
 - Efficient for maps (direct cast)
 - JSON round-trip for structs and byte/string types
 
 **Performance Optimization**: Minimizes JSON marshal/unmarshal cycles. Map operations have zero conversion overhead.
 
-#### 4. Functional Options Pattern (types.go:20-34)
+#### 4. Functional Options Pattern (types.go:31-47)
 
 ```go
 type Option func(*Options)
@@ -159,8 +159,7 @@ result, err := jsonmerge.Merge(userStruct, patchStruct)
 
 **Go Idiomatic Error Handling** - Follows Go best practices:
 
-**Sentinel Errors** (jsonmerge.go:30-44):
-- `ErrInvalidJSON` - Invalid JSON input
+**Sentinel Errors** (jsonmerge.go:34-44) - Defined as `const` with custom `Error` type for immutability:
 - `ErrMarshal` - JSON marshaling failed
 - `ErrUnmarshal` - JSON unmarshaling failed
 - `ErrConversion` - Type conversion between document types failed
@@ -168,7 +167,7 @@ result, err := jsonmerge.Merge(userStruct, patchStruct)
 **Error Wrapping Pattern**:
 ```go
 // Use %w to preserve error chain for errors.Is() checking
-fmt.Errorf("%w: %w", SentinelError, originalError)
+fmt.Errorf("%w: %w", ErrMarshal, originalError)
 fmt.Errorf("convert target: %w", err)  // Add context when needed
 ```
 

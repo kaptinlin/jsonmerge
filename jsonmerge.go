@@ -20,39 +20,45 @@
 package jsonmerge
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/go-json-experiment/json"
 	"github.com/kaptinlin/deepclone"
 )
 
-// Sentinel errors for error checking with errors.Is.
-var (
-	// ErrInvalidJSON indicates the input is not valid JSON.
-	ErrInvalidJSON = errors.New("invalid JSON")
+// Error represents a sentinel error type for the jsonmerge package.
+type Error string
 
+func (e Error) Error() string { return string(e) }
+
+// Sentinel errors for error checking with errors.Is.
+const (
 	// ErrMarshal indicates JSON marshaling failed.
-	ErrMarshal = errors.New("marshal failed")
+	ErrMarshal Error = "marshal failed"
 
 	// ErrUnmarshal indicates JSON unmarshaling failed.
-	ErrUnmarshal = errors.New("unmarshal failed")
+	ErrUnmarshal Error = "unmarshal failed"
 
 	// ErrConversion indicates type conversion between document types failed.
-	ErrConversion = errors.New("type conversion failed")
+	ErrConversion Error = "type conversion failed"
 )
 
 // Merge applies a JSON Merge Patch (RFC 7386) to a target document.
 // It returns a new Result containing the merged document and metadata.
 // The operation is immutable by default unless WithMutate(true) is specified.
+//
+// Possible errors (checkable with errors.Is):
+//   - ErrMarshal: JSON marshaling failed during type conversion
+//   - ErrUnmarshal: JSON unmarshaling failed during type conversion
+//   - ErrConversion: type conversion between document types failed
 func Merge[T Document](target, patch T, opts ...Option) (*Result[T], error) {
 	// Apply options
-	options := &Options{}
+	var options Options
 	for _, opt := range opts {
-		opt(options)
+		opt(&options)
 	}
 
-	// Convert inputs to interface{} for processing
+	// Convert inputs for internal processing
 	targetInterface, err := convertToInterface(target)
 	if err != nil {
 		return nil, fmt.Errorf("convert target: %w", err)
@@ -69,7 +75,7 @@ func Merge[T Document](target, patch T, opts ...Option) (*Result[T], error) {
 	}
 
 	// Apply merge patch
-	merged := mergePatch(targetInterface, patchInterface)
+	merged := applyPatch(targetInterface, patchInterface)
 
 	// Convert back to original type
 	result, err := convertFromInterface[T](merged)
@@ -84,16 +90,23 @@ func Merge[T Document](target, patch T, opts ...Option) (*Result[T], error) {
 
 // Generate creates a JSON Merge Patch between source and target documents.
 // The generated patch can be applied to source to produce target.
+//
+// Possible errors (checkable with errors.Is):
+//   - ErrMarshal: JSON marshaling failed during type conversion
+//   - ErrUnmarshal: JSON unmarshaling failed during type conversion
+//   - ErrConversion: type conversion between document types failed
 func Generate[T Document](source, target T) (T, error) {
-	// Convert inputs to interface{} for processing
+	var zero T
+
+	// Convert inputs for internal processing
 	sourceInterface, err := convertToInterface(source)
 	if err != nil {
-		return *new(T), fmt.Errorf("convert source: %w", err)
+		return zero, fmt.Errorf("convert source: %w", err)
 	}
 
 	targetInterface, err := convertToInterface(target)
 	if err != nil {
-		return *new(T), fmt.Errorf("convert target: %w", err)
+		return zero, fmt.Errorf("convert target: %w", err)
 	}
 
 	// Generate patch
@@ -102,7 +115,7 @@ func Generate[T Document](source, target T) (T, error) {
 	// Convert back to original type
 	result, err := convertFromInterface[T](patch)
 	if err != nil {
-		return *new(T), fmt.Errorf("convert patch: %w", err)
+		return zero, fmt.Errorf("convert patch: %w", err)
 	}
 
 	return result, nil
@@ -111,14 +124,17 @@ func Generate[T Document](source, target T) (T, error) {
 // Valid checks if a patch is a valid JSON Merge Patch.
 // According to RFC 7386, any valid JSON value is a valid merge patch.
 func Valid[T Document](patch T) bool {
-	// Convert patch to interface{} for validation
+	// Convert patch for validation
 	_, err := convertToInterface(patch)
 	return err == nil
 }
 
-// mergePatch implements the core RFC 7386 algorithm.
-// This function directly corresponds to the algorithm specified in RFC 7386 Section 2.
-func mergePatch(target, patch interface{}) interface{} {
+// applyPatch applies the RFC 7386 Section 2 merge patch algorithm.
+//
+// Implementation: if patch is not an object, return patch (complete replacement);
+// if target is not an object, create empty object; then recursively merge fields,
+// deleting on null.
+func applyPatch(target, patch any) any {
 	// If patch is not an object, return patch (complete replacement)
 	if !isObject(patch) {
 		return patch
@@ -126,11 +142,11 @@ func mergePatch(target, patch interface{}) interface{} {
 
 	// If target is not an object, create empty object
 	if !isObject(target) {
-		target = make(map[string]interface{})
+		target = make(map[string]any)
 	}
 
-	targetObj := target.(map[string]interface{})
-	patchObj := patch.(map[string]interface{})
+	targetObj := target.(map[string]any)
+	patchObj := patch.(map[string]any)
 
 	// Apply patch operations
 	for name, value := range patchObj {
@@ -139,7 +155,7 @@ func mergePatch(target, patch interface{}) interface{} {
 			delete(targetObj, name)
 		} else {
 			// Recursive merge for nested objects
-			targetObj[name] = mergePatch(targetObj[name], value)
+			targetObj[name] = applyPatch(targetObj[name], value)
 		}
 	}
 
@@ -147,7 +163,7 @@ func mergePatch(target, patch interface{}) interface{} {
 }
 
 // generatePatch creates a patch that transforms source into target.
-func generatePatch(source, target interface{}) interface{} {
+func generatePatch(source, target any) any {
 	// If target is not an object, return target as complete replacement
 	if !isObject(target) {
 		return target
@@ -158,9 +174,9 @@ func generatePatch(source, target interface{}) interface{} {
 		return target
 	}
 
-	sourceObj := source.(map[string]interface{})
-	targetObj := target.(map[string]interface{})
-	patch := make(map[string]interface{})
+	sourceObj := source.(map[string]any)
+	targetObj := target.(map[string]any)
+	patch := make(map[string]any)
 
 	// Add fields that exist in target
 	for key, targetValue := range targetObj {
@@ -176,7 +192,7 @@ func generatePatch(source, target interface{}) interface{} {
 			// Both are objects - recursive patch generation
 			nestedPatch := generatePatch(sourceValue, targetValue)
 			// Safe type assertion with length check
-			if m, ok := nestedPatch.(map[string]interface{}); ok && len(m) > 0 {
+			if m, ok := nestedPatch.(map[string]any); ok && len(m) > 0 {
 				patch[key] = nestedPatch
 			}
 			continue
@@ -198,15 +214,17 @@ func generatePatch(source, target interface{}) interface{} {
 	return patch
 }
 
-// isObject checks if a value is a JSON object (map[string]interface{}).
-func isObject(v interface{}) bool {
-	_, ok := v.(map[string]interface{})
+// isObject checks if a value is a JSON object (map[string]any).
+func isObject(v any) bool {
+	_, ok := v.(map[string]any)
 	return ok
 }
 
 // deepEqual compares two values for deep equality.
-func deepEqual(a, b interface{}) bool {
-	// Use JSON marshaling for deep comparison
+//
+// Implementation: Uses JSON marshaling for comparison instead of
+// reflect.DeepEqual to avoid panics on uncomparable types (slices, maps).
+func deepEqual(a, b any) bool {
 	aBytes, err := json.Marshal(a)
 	if err != nil {
 		return false
@@ -218,13 +236,13 @@ func deepEqual(a, b interface{}) bool {
 	return string(aBytes) == string(bBytes)
 }
 
-// convertToInterface converts various document types to interface{} for processing.
-func convertToInterface[T Document](doc T) (interface{}, error) {
-	var v interface{} = doc
+// convertToInterface converts various document types to a common representation for processing.
+func convertToInterface[T Document](doc T) (any, error) {
+	var v any = doc
 
 	switch typed := v.(type) {
 	case []byte:
-		var result interface{}
+		var result any
 		if err := json.Unmarshal(typed, &result); err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrUnmarshal, err)
 		}
@@ -232,24 +250,27 @@ func convertToInterface[T Document](doc T) (interface{}, error) {
 
 	case string:
 		// First try to unmarshal as JSON
-		var result interface{}
+		var result any
 		if err := json.Unmarshal([]byte(typed), &result); err == nil {
 			return result, nil
 		}
 		// If it's not valid JSON, treat it as a raw string value
 		return typed, nil
 
-	case map[string]any, nil, bool, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+	case map[string]any, nil,
+		bool, int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64,
+		float32, float64:
 		return typed, nil
 
 	default:
-		// For struct types, marshal then unmarshal to get map[string]interface{}
+		// For struct types, marshal then unmarshal to get map[string]any
 		data, err := json.Marshal(typed)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrMarshal, err)
 		}
 
-		var result interface{}
+		var result any
 		if err := json.Unmarshal(data, &result); err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrUnmarshal, err)
 		}
@@ -257,8 +278,8 @@ func convertToInterface[T Document](doc T) (interface{}, error) {
 	}
 }
 
-// convertFromInterface converts interface{} back to the original document type.
-func convertFromInterface[T Document](val interface{}) (T, error) {
+// convertFromInterface converts a common representation back to the original document type.
+func convertFromInterface[T Document](val any) (T, error) {
 	var zero T
 
 	switch any(zero).(type) {
@@ -279,10 +300,10 @@ func convertFromInterface[T Document](val interface{}) (T, error) {
 		return any(string(data)).(T), nil
 
 	case map[string]any:
-		if m, ok := val.(map[string]interface{}); ok {
+		if m, ok := val.(map[string]any); ok {
 			return any(m).(T), nil
 		}
-		return zero, fmt.Errorf("%w: expected map[string]interface{}, got %T", ErrConversion, val)
+		return zero, fmt.Errorf("%w: expected map[string]any, got %T", ErrConversion, val)
 
 	default:
 		// For struct types, marshal then unmarshal to target type
