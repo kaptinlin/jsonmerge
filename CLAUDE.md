@@ -73,7 +73,7 @@ go test -bench=BenchmarkMerge -run=^$
 
 **RFC 7386 First**: Every implementation decision prioritizes RFC 7386 compliance. The algorithm in `applyPatch()` (jsonmerge.go:132-163) directly implements RFC 7386 Section 2.
 
-**Type Safety Through Generics**: Uses Go 1.25+ generics with `Document` interface constraint to provide compile-time type safety while supporting multiple document types (structs, maps, JSON bytes, JSON strings).
+**Type Safety Through Generics**: Uses Go 1.26+ generics with `Document` interface constraint to provide compile-time type safety while supporting multiple document types (structs, maps, JSON bytes, JSON strings).
 
 **Immutable by Default**: Uses `github.com/kaptinlin/deepclone` for deep cloning to prevent side effects. Optional `WithMutate(true)` enables in-place modification for performance-critical scenarios (3x faster).
 
@@ -184,7 +184,7 @@ fmt.Errorf("convert target: %w", err)  // Add context when needed
 ### Code Quality Standards
 
 **golangci-lint Configuration**:
-- Version: 2.4.0 (managed via `.golangci.version`)
+- Version: 2.9.0 (managed via `.golangci.version`)
 - Timeout: 5m for Go 1.24+
 - Enabled linters: errcheck, govet, staticcheck, gosec, exhaustive, and 20+ more
 - Examples directory excluded from most linters
@@ -205,7 +205,7 @@ fmt.Errorf("convert target: %w", err)  // Add context when needed
 **From .cursor/rules.md**:
 
 1. **RFC 7386 Compliance is Paramount**: Never deviate from RFC 7386 algorithm specification
-2. **Type Safety First**: Leverage Go 1.25+ generics comprehensively
+2. **Type Safety First**: Leverage Go 1.26+ generics comprehensively
 3. **Immutable by Default**: Use deep cloning unless `WithMutate(true)` specified
 4. **Minimal Dependencies**: Only `github.com/kaptinlin/deepclone` and `github.com/go-json-experiment/json`
 5. **Go Idiomatic Error Handling**:
@@ -259,7 +259,7 @@ fmt.Errorf("convert target: %w", err)  // Add context when needed
 **Test Dependencies**:
 - `github.com/stretchr/testify` - Test assertions
 
-**Go Version**: 1.25+ (uses generics, type inference, modern stdlib)
+**Go Version**: 1.26+ (uses generics, type inference, modern stdlib)
 
 ## Examples Directory
 
