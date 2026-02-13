@@ -2,10 +2,11 @@ package jsonmerge
 
 import (
 	"fmt"
-	"github.com/go-json-experiment/json"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/go-json-experiment/json"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -623,7 +624,7 @@ func TestOperationalReliabilityAndConsistency(t *testing.T) {
 	t.Run("selective_updates_in_large_datasets", func(t *testing.T) {
 		// Construct extensive dataset with predominantly stable data
 		extensiveDataset := make(map[string]any)
-		for record := 0; record < 1200; record++ {
+		for record := range 1200 {
 			extensiveDataset[fmt.Sprintf("record_%d", record)] = fmt.Sprintf("data_%d", record)
 		}
 		extensiveDataset["activeRecord"] = "initial_state"
@@ -946,14 +947,13 @@ func TestConcurrencyAndImmutability(t *testing.T) {
 		const numOperations = 10
 
 		results := make([]*Result[map[string]any], numGoroutines*numOperations)
-		done := make(chan bool, numGoroutines)
+		var wg sync.WaitGroup
 
 		// Run concurrent merge operations
-		for i := 0; i < numGoroutines; i++ {
-			go func(goroutineID int) {
-				defer func() { done <- true }()
-
-				for j := 0; j < numOperations; j++ {
+		for i := range numGoroutines {
+			goroutineID := i
+			wg.Go(func() {
+				for j := range numOperations {
 					patch := map[string]any{
 						"counter": goroutineID*numOperations + j,
 						"id":      fmt.Sprintf("goroutine-%d-op-%d", goroutineID, j),
@@ -963,13 +963,11 @@ func TestConcurrencyAndImmutability(t *testing.T) {
 					require.NoError(t, err)
 					results[goroutineID*numOperations+j] = result
 				}
-			}(i)
+			})
 		}
 
 		// Wait for all goroutines to complete
-		for i := 0; i < numGoroutines; i++ {
-			<-done
-		}
+		wg.Wait()
 
 		// Verify original target is unchanged
 		assert.Equal(t, 0, target["counter"])
@@ -1112,7 +1110,7 @@ func TestNestedStructures(t *testing.T) {
 		levels := 20
 		game := make(map[string]any)
 		currentLevel := game
-		for level := 0; level < levels; level++ {
+		for level := range levels {
 			nextLevel := make(map[string]any)
 			currentLevel[fmt.Sprintf("level_%d", level+1)] = nextLevel
 			currentLevel = nextLevel
@@ -1123,7 +1121,7 @@ func TestNestedStructures(t *testing.T) {
 		// Create an update for the final level
 		update := make(map[string]any)
 		currentLevel = update
-		for level := 0; level < levels; level++ {
+		for level := range levels {
 			nextLevel := make(map[string]any)
 			currentLevel[fmt.Sprintf("level_%d", level+1)] = nextLevel
 			currentLevel = nextLevel
@@ -1137,7 +1135,7 @@ func TestNestedStructures(t *testing.T) {
 
 		// Navigate to the final level and verify changes
 		currentLevel = result.Doc
-		for level := 0; level < levels; level++ {
+		for level := range levels {
 			currentLevel = currentLevel[fmt.Sprintf("level_%d", level+1)].(map[string]any)
 		}
 		assert.Equal(t, "super dragon", currentLevel["boss"])
@@ -1154,7 +1152,7 @@ func TestLargeDatasets(t *testing.T) {
 		playerSettings := make(map[string]any)
 		settingUpdates := make(map[string]any)
 
-		for i := 0; i < settingCount; i++ {
+		for i := range settingCount {
 			playerSettings[fmt.Sprintf("setting_%d", i)] = fmt.Sprintf("default_%d", i)
 			if i%10 == 0 { // Update every 10th setting
 				settingUpdates[fmt.Sprintf("setting_%d", i)] = fmt.Sprintf("new_value_%d", i)
@@ -1181,7 +1179,7 @@ func TestLargeDatasets(t *testing.T) {
 		newCatalog := make(map[string]any)
 
 		largeProductList := make([]any, productCount)
-		for i := 0; i < productCount; i++ {
+		for i := range productCount {
 			largeProductList[i] = fmt.Sprintf("product_%d", i)
 		}
 		originalCatalog["products"] = largeProductList
@@ -1378,7 +1376,7 @@ func TestPerformanceAndStressConditions(t *testing.T) {
 		// Build hierarchical organization structure
 		organization := make(map[string]any)
 		currentNode := organization
-		for tier := 0; tier < treeDepth; tier++ {
+		for tier := range treeDepth {
 			nextNode := make(map[string]any)
 			currentNode["branch"] = nextNode
 			currentNode["info"] = fmt.Sprintf("tier_%d", tier)
@@ -1389,7 +1387,7 @@ func TestPerformanceAndStressConditions(t *testing.T) {
 		// Create restructuring update
 		restructure := make(map[string]any)
 		currentNode = restructure
-		for tier := 0; tier < treeDepth; tier++ {
+		for range treeDepth {
 			nextNode := make(map[string]any)
 			currentNode["branch"] = nextNode
 			currentNode = nextNode
@@ -1405,7 +1403,7 @@ func TestPerformanceAndStressConditions(t *testing.T) {
 
 		// Navigate to verify the hierarchical change
 		currentNode = result.Doc
-		for tier := 0; tier < treeDepth; tier++ {
+		for range treeDepth {
 			currentNode = currentNode["branch"].(map[string]any)
 		}
 		assert.Equal(t, "restructured_value", currentNode["endpoint"])
@@ -1422,7 +1420,7 @@ func TestPerformanceAndStressConditions(t *testing.T) {
 		updates := make(map[string]any)
 
 		// Build extensive property inventory
-		for prop := 0; prop < propertyCount; prop++ {
+		for prop := range propertyCount {
 			inventory[fmt.Sprintf("property_%d", prop)] = fmt.Sprintf("original_%d", prop)
 			if prop%80 == 0 { // Update every 80th property
 				updates[fmt.Sprintf("property_%d", prop)] = fmt.Sprintf("revised_%d", prop)
