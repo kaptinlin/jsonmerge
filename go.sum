@@ -3,8 +3,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/go-json-experiment/json v0.0.0-20251027170946-4849db3c2f7e h1:Lf/gRkoycfOBPa42vU2bbgPurFong6zXeFtPoxholzU=
 github.com/go-json-experiment/json v0.0.0-20251027170946-4849db3c2f7e/go.mod h1:uNVvRXArCGbZ508SxYYTC5v1JWoz2voff5pm25jU1Ok=
-github.com/kaptinlin/deepclone v0.2.4 h1:o8KAXaZN8I8cJGFs1xBYihLXWCdbFo7QFbsIoBRR/8I=
-github.com/kaptinlin/deepclone v0.2.4/go.mod h1:S/bgnS0AceLZxDHEqxNJqJPw2nITbi59J6hneoPVp6Y=
+github.com/kaptinlin/deepclone v0.2.5 h1:Tab+mFpMOXrgV/B5Ki/ZzJ65B1LRoddA9pDxGfCu3NI=
+github.com/kaptinlin/deepclone v0.2.5/go.mod h1:SvbvSQmFYS5glrGRYDu/qtsTUzX9YVmrsOOvC85N9Xw=
 github.com/kr/pretty v0.2.1/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfnI=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/pretty v0.3.1/go.mod h1:hoEshYVHaxMs3cyo3Yncou5ZscifuDolrwPKZanG3xk=
