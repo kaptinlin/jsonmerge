@@ -221,9 +221,7 @@ func isObject(v any) bool {
 }
 
 // deepEqual compares two values for deep equality.
-//
-// Implementation: Uses JSON marshaling for comparison instead of
-// reflect.DeepEqual to avoid panics on uncomparable types (slices, maps).
+// Uses JSON marshaling for comparison to avoid panics on uncomparable types.
 func deepEqual(a, b any) bool {
 	aBytes, err := json.Marshal(a)
 	if err != nil {
