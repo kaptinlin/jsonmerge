@@ -1,6 +1,7 @@
 package jsonmerge
 
 import (
+	"maps"
 	"testing"
 )
 
@@ -63,9 +64,7 @@ func BenchmarkMergeWithMutate(b *testing.B) {
 	for b.Loop() {
 		// Create a fresh copy for each iteration since we're mutating
 		target := make(map[string]any)
-		for k, v := range originalTarget {
-			target[k] = v
-		}
+		maps.Copy(target, originalTarget)
 
 		_, err := Merge(target, patch, WithMutate(true))
 		if err != nil {
