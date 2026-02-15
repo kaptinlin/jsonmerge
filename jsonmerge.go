@@ -135,26 +135,20 @@ func Valid[T Document](patch T) bool {
 // if target is not an object, create empty object; then recursively merge fields,
 // deleting on null.
 func applyPatch(target, patch any) any {
-	// If patch is not an object, return patch (complete replacement)
-	if !isObject(patch) {
+	patchObj, isPatchObject := patch.(map[string]any)
+	if !isPatchObject {
 		return patch
 	}
 
-	// If target is not an object, create empty object
-	if !isObject(target) {
-		target = make(map[string]any)
+	targetObj, isTargetObject := target.(map[string]any)
+	if !isTargetObject {
+		targetObj = make(map[string]any)
 	}
 
-	targetObj := target.(map[string]any)
-	patchObj := patch.(map[string]any)
-
-	// Apply patch operations
 	for name, value := range patchObj {
 		if value == nil {
-			// null value means delete the field
 			delete(targetObj, name)
 		} else {
-			// Recursive merge for nested objects
 			targetObj[name] = applyPatch(targetObj[name], value)
 		}
 	}
@@ -164,34 +158,29 @@ func applyPatch(target, patch any) any {
 
 // generatePatch creates a patch that transforms source into target.
 func generatePatch(source, target any) any {
-	// If target is not an object, return target as complete replacement
-	if !isObject(target) {
+	targetObj, isTargetObject := target.(map[string]any)
+	if !isTargetObject {
 		return target
 	}
 
-	// If source is not an object, return target as complete replacement
-	if !isObject(source) {
+	sourceObj, isSourceObject := source.(map[string]any)
+	if !isSourceObject {
 		return target
 	}
 
-	sourceObj := source.(map[string]any)
-	targetObj := target.(map[string]any)
 	patch := make(map[string]any)
 
-	// Add fields that exist in target
 	for key, targetValue := range targetObj {
 		sourceValue, exists := sourceObj[key]
 		if !exists {
-			// Field only exists in target - add it
 			patch[key] = targetValue
 			continue
 		}
 
-		// Field exists in both - check if they need merging
-		if isObject(sourceValue) && isObject(targetValue) {
-			// Both are objects - recursive patch generation
-			nestedPatch := generatePatch(sourceValue, targetValue)
-			// Safe type assertion with length check
+		sourceValueObj, isSourceObj := sourceValue.(map[string]any)
+		targetValueObj, isTargetObj := targetValue.(map[string]any)
+		if isSourceObj && isTargetObj {
+			nestedPatch := generatePatch(sourceValueObj, targetValueObj)
 			if m, ok := nestedPatch.(map[string]any); ok && len(m) > 0 {
 				patch[key] = nestedPatch
 			}
@@ -199,12 +188,10 @@ func generatePatch(source, target any) any {
 		}
 
 		if !deepEqual(sourceValue, targetValue) {
-			// Values are different - include in patch
 			patch[key] = targetValue
 		}
 	}
 
-	// Add null values for fields that should be deleted (exist in source but not in target)
 	for key := range sourceObj {
 		if _, exists := targetObj[key]; !exists {
 			patch[key] = nil
@@ -212,12 +199,6 @@ func generatePatch(source, target any) any {
 	}
 
 	return patch
-}
-
-// isObject checks if a value is a JSON object (map[string]any).
-func isObject(v any) bool {
-	_, ok := v.(map[string]any)
-	return ok
 }
 
 // deepEqual compares two values for deep equality.
@@ -247,12 +228,10 @@ func convertToInterface[T Document](doc T) (any, error) {
 		return result, nil
 
 	case string:
-		// First try to unmarshal as JSON
 		var result any
 		if err := json.Unmarshal([]byte(typed), &result); err == nil {
 			return result, nil
 		}
-		// If it's not valid JSON, treat it as a raw string value
 		return typed, nil
 
 	case map[string]any, nil,
@@ -262,7 +241,6 @@ func convertToInterface[T Document](doc T) (any, error) {
 		return typed, nil
 
 	default:
-		// For struct types, marshal then unmarshal to get map[string]any
 		data, err := json.Marshal(typed)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrMarshal, err)
@@ -282,7 +260,6 @@ func convertFromInterface[T Document](val any) (T, error) {
 
 	switch any(zero).(type) {
 	case []byte:
-		// Convert to JSON bytes
 		data, err := json.Marshal(val)
 		if err != nil {
 			return zero, fmt.Errorf("%w: %w", ErrMarshal, err)
@@ -290,7 +267,6 @@ func convertFromInterface[T Document](val any) (T, error) {
 		return any(data).(T), nil
 
 	case string:
-		// Convert to JSON string
 		data, err := json.Marshal(val)
 		if err != nil {
 			return zero, fmt.Errorf("%w: %w", ErrMarshal, err)
@@ -304,7 +280,6 @@ func convertFromInterface[T Document](val any) (T, error) {
 		return zero, fmt.Errorf("%w: expected map[string]any, got %T", ErrConversion, val)
 
 	default:
-		// For struct types, marshal then unmarshal to target type
 		data, err := json.Marshal(val)
 		if err != nil {
 			return zero, fmt.Errorf("%w: %w", ErrMarshal, err)

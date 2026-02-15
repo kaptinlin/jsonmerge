@@ -39,7 +39,7 @@ func BenchmarkMerge(b *testing.B) {
 
 // BenchmarkMergeWithMutate benchmarks the merge operation with mutation
 func BenchmarkMergeWithMutate(b *testing.B) {
-	originalTarget := map[string]any{
+	target := map[string]any{
 		"name": "John",
 		"nested": map[string]any{
 			"deep": map[string]any{
@@ -62,11 +62,7 @@ func BenchmarkMergeWithMutate(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		// Create a fresh copy for each iteration since we're mutating
-		target := make(map[string]any)
-		maps.Copy(target, originalTarget)
-
-		_, err := Merge(target, patch, WithMutate(true))
+		_, err := Merge(maps.Clone(target), patch, WithMutate(true))
 		if err != nil {
 			b.Fatal(err)
 		}
