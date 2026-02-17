@@ -44,7 +44,7 @@ const (
 )
 
 // Merge applies a JSON Merge Patch (RFC 7386) to a target document.
-// It returns a new Result containing the merged document and metadata.
+// It returns a new Result containing the merged document.
 // The operation is immutable by default unless WithMutate(true) is specified.
 //
 // Possible errors (checkable with errors.Is):
@@ -52,13 +52,11 @@ const (
 //   - ErrUnmarshal: JSON unmarshaling failed during type conversion
 //   - ErrConversion: type conversion between document types failed
 func Merge[T Document](target, patch T, opts ...Option) (*Result[T], error) {
-	// Apply options
 	var options Options
 	for _, opt := range opts {
 		opt(&options)
 	}
 
-	// Convert inputs for internal processing
 	targetInterface, err := convertToInterface(target)
 	if err != nil {
 		return nil, fmt.Errorf("convert target: %w", err)
@@ -69,23 +67,18 @@ func Merge[T Document](target, patch T, opts ...Option) (*Result[T], error) {
 		return nil, fmt.Errorf("convert patch: %w", err)
 	}
 
-	// Clone target if not mutating
 	if !options.Mutate {
 		targetInterface = deepclone.Clone(targetInterface)
 	}
 
-	// Apply merge patch
 	merged := applyPatch(targetInterface, patchInterface)
 
-	// Convert back to original type
 	result, err := convertFromInterface[T](merged)
 	if err != nil {
 		return nil, fmt.Errorf("convert result: %w", err)
 	}
 
-	return &Result[T]{
-		Doc: result,
-	}, nil
+	return &Result[T]{Doc: result}, nil
 }
 
 // Generate creates a JSON Merge Patch between source and target documents.
@@ -98,7 +91,6 @@ func Merge[T Document](target, patch T, opts ...Option) (*Result[T], error) {
 func Generate[T Document](source, target T) (T, error) {
 	var zero T
 
-	// Convert inputs for internal processing
 	sourceInterface, err := convertToInterface(source)
 	if err != nil {
 		return zero, fmt.Errorf("convert source: %w", err)
@@ -109,10 +101,8 @@ func Generate[T Document](source, target T) (T, error) {
 		return zero, fmt.Errorf("convert target: %w", err)
 	}
 
-	// Generate patch
 	patch := generatePatch(sourceInterface, targetInterface)
 
-	// Convert back to original type
 	result, err := convertFromInterface[T](patch)
 	if err != nil {
 		return zero, fmt.Errorf("convert patch: %w", err)
@@ -124,7 +114,6 @@ func Generate[T Document](source, target T) (T, error) {
 // Valid checks if a patch is a valid JSON Merge Patch.
 // According to RFC 7386, any valid JSON value is a valid merge patch.
 func Valid[T Document](patch T) bool {
-	// Convert patch for validation
 	_, err := convertToInterface(patch)
 	return err == nil
 }

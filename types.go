@@ -2,11 +2,11 @@
 package jsonmerge
 
 // Document represents the supported document types for JSON Merge Patch operations.
-// This constraint allows for type-safe operations across different JSON representations.
+// This constraint allows type-safe operations across different JSON representations.
 //
 // Supported types and their behavior:
 //   - []byte: must contain valid JSON; returns ErrUnmarshal if invalid
-//   - string: first attempts JSON parsing; if invalid JSON, treated as raw string value
+//   - string: attempts JSON parsing; if invalid JSON, treated as raw string value
 //   - map[string]any: native format with zero conversion overhead (most efficient)
 //   - struct types (via any): converted through JSON marshal/unmarshal cycle;
 //     respects json struct tags (json:"name,omitempty", json:"-")
@@ -33,7 +33,7 @@ type Option func(*Options)
 
 // WithMutate configures whether to modify the target document in place.
 // By default, merge operations are immutable and create a new document.
-// Setting mutate to true can improve performance but may affect thread safety.
+// Setting mutate to true improves performance but affects thread safety.
 //
 // Default: false
 //
