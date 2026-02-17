@@ -486,59 +486,59 @@ func TestValid(t *testing.T) {
 // TestSophisticatedPatchGeneration tests Generate function with complex transformation scenarios
 func TestSophisticatedPatchGeneration(t *testing.T) {
 	t.Run("collection_transformation_analysis", func(t *testing.T) {
-		initialState := map[string]any{
+		source := map[string]any{
 			"resources": []any{"server1", "server2", "server3"},
 			"capacity":  100,
 		}
 
-		targetState := map[string]any{
+		target := map[string]any{
 			"resources": []any{"server4", "server5"},
 			"capacity":  75,
 		}
 
-		transformation, err := Generate(initialState, targetState)
+		patch, err := Generate(source, target)
 		require.NoError(t, err)
 
-		anticipatedTransformation := map[string]any{
+		expected := map[string]any{
 			"resources": []any{"server4", "server5"},
 			"capacity":  75,
 		}
-		assert.Equal(t, anticipatedTransformation, transformation)
+		assert.Equal(t, expected, patch)
 
-		// Verify transformation application achieves target state
-		result, err := Merge(initialState, transformation)
+		// Verify patch application achieves target state
+		result, err := Merge(source, patch)
 		require.NoError(t, err)
-		assert.Equal(t, targetState, result.Doc)
+		assert.Equal(t, target, result.Doc)
 	})
 
 	t.Run("datatype_migration_detection", func(t *testing.T) {
-		sourceSchema := map[string]any{
+		source := map[string]any{
 			"identifier":  "user123",
 			"preferences": map[string]any{"theme": "light"},
 		}
 
-		migratedSchema := map[string]any{
+		target := map[string]any{
 			"identifier":  12345,
 			"preferences": []any{"dark_mode", "notifications"},
 		}
 
-		migration, err := Generate(sourceSchema, migratedSchema)
+		patch, err := Generate(source, target)
 		require.NoError(t, err)
 
-		anticipatedMigration := map[string]any{
+		expected := map[string]any{
 			"identifier":  12345,
 			"preferences": []any{"dark_mode", "notifications"},
 		}
-		assert.Equal(t, anticipatedMigration, migration)
+		assert.Equal(t, expected, patch)
 
-		// Verify migration achieves schema transformation
-		result, err := Merge(sourceSchema, migration)
+		// Verify patch achieves schema transformation
+		result, err := Merge(source, patch)
 		require.NoError(t, err)
-		assert.Equal(t, migratedSchema, result.Doc)
+		assert.Equal(t, target, result.Doc)
 	})
 
 	t.Run("optimized_differential_generation", func(t *testing.T) {
-		baseConfiguration := map[string]any{
+		source := map[string]any{
 			"database": map[string]any{
 				"host": "localhost",
 				"port": 5432,
@@ -553,7 +553,7 @@ func TestSophisticatedPatchGeneration(t *testing.T) {
 			},
 		}
 
-		updatedConfiguration := map[string]any{
+		target := map[string]any{
 			"database": map[string]any{
 				"host": "localhost", // Unchanged
 				"port": 5432,        // Unchanged
@@ -570,11 +570,11 @@ func TestSophisticatedPatchGeneration(t *testing.T) {
 			},
 		}
 
-		differential, err := Generate(baseConfiguration, updatedConfiguration)
+		patch, err := Generate(source, target)
 		require.NoError(t, err)
 
-		// Differential should contain only the actual changes
-		expectedDifferential := map[string]any{
+		// Patch should contain only the actual changes
+		expected := map[string]any{
 			"database": map[string]any{
 				"name": "staging",
 				"ssl":  true,
@@ -584,70 +584,66 @@ func TestSophisticatedPatchGeneration(t *testing.T) {
 				"file":  "/var/log/app.log",
 			},
 		}
-		assert.Equal(t, expectedDifferential, differential)
+		assert.Equal(t, expected, patch)
 
-		// Verify differential application produces correct result
-		result, err := Merge(baseConfiguration, differential)
+		// Verify patch application produces correct result
+		result, err := Merge(source, patch)
 		require.NoError(t, err)
-		assert.Equal(t, updatedConfiguration, result.Doc)
+		assert.Equal(t, target, result.Doc)
 	})
 }
 
 // TestOperationalReliabilityAndConsistency tests library reliability across diverse usage patterns
 func TestOperationalReliabilityAndConsistency(t *testing.T) {
 	t.Run("sequential_state_transitions", func(t *testing.T) {
-		systemState := map[string]any{"phase": 0}
+		state := map[string]any{"phase": 0}
 
-		// Execute progressive state transitions
 		for phase := 1; phase <= 12; phase++ {
-			transition := map[string]any{"phase": phase}
-			result, err := Merge(systemState, transition)
+			patch := map[string]any{"phase": phase}
+			result, err := Merge(state, patch)
 			require.NoError(t, err)
 			assert.Equal(t, phase, result.Doc["phase"])
-			systemState = result.Doc
+			state = result.Doc
 		}
 	})
 
 	t.Run("deterministic_operation_behavior", func(t *testing.T) {
-		baseDocument := map[string]any{"flag": "enabled", "score": 85}
-		update := map[string]any{"flag": "enabled"} // Identical value
+		target := map[string]any{"flag": "enabled", "score": 85}
+		patch := map[string]any{"flag": "enabled"} // Identical value
 
-		firstApplication, err := Merge(baseDocument, update)
+		first, err := Merge(target, patch)
 		require.NoError(t, err)
 
-		secondApplication, err := Merge(firstApplication.Doc, update)
+		second, err := Merge(first.Doc, patch)
 		require.NoError(t, err)
 
-		assert.Equal(t, firstApplication.Doc, secondApplication.Doc)
+		assert.Equal(t, first.Doc, second.Doc)
 	})
 
 	t.Run("selective_updates_in_large_datasets", func(t *testing.T) {
-		// Construct extensive dataset with predominantly stable data
-		extensiveDataset := make(map[string]any)
-		for record := range 1200 {
-			extensiveDataset[fmt.Sprintf("record_%d", record)] = fmt.Sprintf("data_%d", record)
+		dataset := make(map[string]any)
+		for i := range 1200 {
+			dataset[fmt.Sprintf("record_%d", i)] = fmt.Sprintf("data_%d", i)
 		}
-		extensiveDataset["activeRecord"] = "initial_state"
+		dataset["activeRecord"] = "initial_state"
 
-		fullDocument := map[string]any{
-			"dataset":    extensiveDataset,
+		target := map[string]any{
+			"dataset":    dataset,
 			"statistics": map[string]any{"totalRecords": 1200},
 		}
 
-		// Minimal update targeting specific nested value
-		update := map[string]any{
+		patch := map[string]any{
 			"dataset": map[string]any{
 				"activeRecord": "updated_state",
 			},
 		}
 
-		result, err := Merge(fullDocument, update)
+		result, err := Merge(target, patch)
 		require.NoError(t, err)
 
-		// Verify targeted update was applied successfully
-		dataset := result.Doc["dataset"].(map[string]any)
-		assert.Equal(t, "updated_state", dataset["activeRecord"])
-		assert.Equal(t, "data_0", dataset["record_0"]) // Verify data preservation
+		merged := result.Doc["dataset"].(map[string]any)
+		assert.Equal(t, "updated_state", merged["activeRecord"])
+		assert.Equal(t, "data_0", merged["record_0"])
 	})
 }
 
@@ -1147,49 +1143,42 @@ func TestNestedStructures(t *testing.T) {
 // TestLargeDatasets tests performance with large amounts of data
 func TestLargeDatasets(t *testing.T) {
 	t.Run("game_player_settings", func(t *testing.T) {
-		// Build a large player configuration with 500 settings
-		const settingCount = 500
-		playerSettings := make(map[string]any)
-		settingUpdates := make(map[string]any)
+		const count = 500
+		settings := make(map[string]any)
+		patch := make(map[string]any)
 
-		for i := range settingCount {
-			playerSettings[fmt.Sprintf("setting_%d", i)] = fmt.Sprintf("default_%d", i)
-			if i%10 == 0 { // Update every 10th setting
-				settingUpdates[fmt.Sprintf("setting_%d", i)] = fmt.Sprintf("new_value_%d", i)
+		for i := range count {
+			settings[fmt.Sprintf("setting_%d", i)] = fmt.Sprintf("default_%d", i)
+			if i%10 == 0 {
+				patch[fmt.Sprintf("setting_%d", i)] = fmt.Sprintf("new_value_%d", i)
 			}
 		}
-		// Add some new settings
-		for i := settingCount; i < settingCount+30; i++ {
-			settingUpdates[fmt.Sprintf("new_setting_%d", i)] = fmt.Sprintf("value_%d", i)
+		for i := count; i < count+30; i++ {
+			patch[fmt.Sprintf("new_setting_%d", i)] = fmt.Sprintf("value_%d", i)
 		}
 
-		result, err := Merge(playerSettings, settingUpdates)
+		result, err := Merge(settings, patch)
 		require.NoError(t, err)
 
-		// Verify updates were applied correctly
 		assert.Equal(t, "new_value_0", result.Doc["setting_0"])
-		assert.Equal(t, "default_1", result.Doc["setting_1"]) // Unchanged
+		assert.Equal(t, "default_1", result.Doc["setting_1"])
 		assert.Equal(t, "value_500", result.Doc["new_setting_500"])
 	})
 
 	t.Run("product_catalog_replacement", func(t *testing.T) {
-		// Create large product catalog
-		const productCount = 5000
-		originalCatalog := make(map[string]any)
-		newCatalog := make(map[string]any)
-
-		largeProductList := make([]any, productCount)
-		for i := range productCount {
-			largeProductList[i] = fmt.Sprintf("product_%d", i)
+		const count = 5000
+		products := make([]any, count)
+		for i := range count {
+			products[i] = fmt.Sprintf("product_%d", i)
 		}
-		originalCatalog["products"] = largeProductList
+		target := map[string]any{"products": products}
 
-		simpleProductList := []any{"featured_item_1", "featured_item_2", "featured_item_3"}
-		newCatalog["products"] = simpleProductList
+		featured := []any{"featured_item_1", "featured_item_2", "featured_item_3"}
+		patch := map[string]any{"products": featured}
 
-		result, err := Merge(originalCatalog, newCatalog)
+		result, err := Merge(target, patch)
 		require.NoError(t, err)
-		assert.Equal(t, simpleProductList, result.Doc["products"])
+		assert.Equal(t, featured, result.Doc["products"])
 	})
 }
 
@@ -1227,17 +1216,9 @@ func TestBoundaryConditions(t *testing.T) {
 				result, err := Merge(scenario.input, scenario.patch)
 				require.NoError(t, err)
 
-				// Serialize result for verification
-				var resultJSON string
-				switch output := result.Doc.(type) {
-				case string:
-					resultJSON = output
-				default:
-					data, err := json.Marshal(output)
-					require.NoError(t, err)
-					resultJSON = string(data)
-				}
-				assert.JSONEq(t, scenario.expected, resultJSON)
+				data, err := json.Marshal(result.Doc)
+				require.NoError(t, err)
+				assert.JSONEq(t, scenario.expected, string(data))
 			})
 		}
 	})
@@ -1266,8 +1247,7 @@ func TestBoundaryConditions(t *testing.T) {
 // TestJSONCompatibility tests compatibility across different JSON processing scenarios
 func TestJSONCompatibility(t *testing.T) {
 	t.Run("json_roundtrip", func(t *testing.T) {
-		// Verify merge results maintain consistency through JSON serialization cycles
-		originalData := map[string]any{
+		target := map[string]any{
 			"score":    85.5,
 			"player":   "alex",
 			"online":   true,
@@ -1276,27 +1256,26 @@ func TestJSONCompatibility(t *testing.T) {
 			"items":    []any{1, "sword", 99.9},
 		}
 
-		updateData := map[string]any{
+		patch := map[string]any{
 			"score": 92.3,
 			"rank":  "advanced",
 			"stats": map[string]any{"experience": "1000"},
 		}
 
-		result, err := Merge(originalData, updateData)
+		result, err := Merge(target, patch)
 		require.NoError(t, err)
 
 		// Serialize and deserialize the result
-		jsonBytes, err := json.Marshal(result.Doc)
+		data, err := json.Marshal(result.Doc)
 		require.NoError(t, err)
 
-		var reconstructed map[string]any
-		err = json.Unmarshal(jsonBytes, &reconstructed)
+		var roundtripped map[string]any
+		err = json.Unmarshal(data, &roundtripped)
 		require.NoError(t, err)
 
-		// Verify the data types are preserved correctly
-		assert.Equal(t, float64(92.3), reconstructed["score"]) // JSON converts to float64
-		assert.Equal(t, "advanced", reconstructed["rank"])
-		assert.Equal(t, "alex", reconstructed["player"])
+		assert.Equal(t, float64(92.3), roundtripped["score"])
+		assert.Equal(t, "advanced", roundtripped["rank"])
+		assert.Equal(t, "alex", roundtripped["player"])
 	})
 
 	t.Run("data_type_handling", func(t *testing.T) {
@@ -1370,102 +1349,91 @@ func TestJSONCompatibility(t *testing.T) {
 // TestPerformanceAndStressConditions tests library behavior under demanding scenarios
 func TestPerformanceAndStressConditions(t *testing.T) {
 	t.Run("hierarchical_structure_efficiency", func(t *testing.T) {
-		// Test performance with complex hierarchical structures
-		const treeDepth = 90
+		const depth = 90
 
-		// Build hierarchical organization structure
-		organization := make(map[string]any)
-		currentNode := organization
-		for tier := range treeDepth {
-			nextNode := make(map[string]any)
-			currentNode["branch"] = nextNode
-			currentNode["info"] = fmt.Sprintf("tier_%d", tier)
-			currentNode = nextNode
+		// Build hierarchical structure
+		target := make(map[string]any)
+		node := target
+		for i := range depth {
+			next := make(map[string]any)
+			node["branch"] = next
+			node["info"] = fmt.Sprintf("tier_%d", i)
+			node = next
 		}
-		currentNode["endpoint"] = "original_value"
+		node["endpoint"] = "original_value"
 
-		// Create restructuring update
-		restructure := make(map[string]any)
-		currentNode = restructure
-		for range treeDepth {
-			nextNode := make(map[string]any)
-			currentNode["branch"] = nextNode
-			currentNode = nextNode
+		// Create update for the deepest level
+		patch := make(map[string]any)
+		node = patch
+		for range depth {
+			next := make(map[string]any)
+			node["branch"] = next
+			node = next
 		}
-		currentNode["endpoint"] = "restructured_value"
+		node["endpoint"] = "restructured_value"
 
-		// Monitor execution time
 		start := time.Now()
-		result, err := Merge(organization, restructure)
+		result, err := Merge(target, patch)
 		elapsed := time.Since(start)
 
 		require.NoError(t, err)
 
-		// Navigate to verify the hierarchical change
-		currentNode = result.Doc
-		for range treeDepth {
-			currentNode = currentNode["branch"].(map[string]any)
+		// Navigate to verify the deep change
+		node = result.Doc
+		for range depth {
+			node = node["branch"].(map[string]any)
 		}
-		assert.Equal(t, "restructured_value", currentNode["endpoint"])
+		assert.Equal(t, "restructured_value", node["endpoint"])
 
-		// Performance requirement (< 90ms for this complexity)
 		assert.Less(t, elapsed, 90*time.Millisecond, "Hierarchical merge took %v, exceeds threshold", elapsed)
 	})
 
 	t.Run("extensive_property_handling", func(t *testing.T) {
-		// Test performance with extensive property collections
-		const propertyCount = 4000
+		const count = 4000
 
-		inventory := make(map[string]any)
-		updates := make(map[string]any)
+		target := make(map[string]any)
+		patch := make(map[string]any)
 
-		// Build extensive property inventory
-		for prop := range propertyCount {
-			inventory[fmt.Sprintf("property_%d", prop)] = fmt.Sprintf("original_%d", prop)
-			if prop%80 == 0 { // Update every 80th property
-				updates[fmt.Sprintf("property_%d", prop)] = fmt.Sprintf("revised_%d", prop)
+		for i := range count {
+			target[fmt.Sprintf("property_%d", i)] = fmt.Sprintf("original_%d", i)
+			if i%80 == 0 {
+				patch[fmt.Sprintf("property_%d", i)] = fmt.Sprintf("revised_%d", i)
 			}
 		}
 
 		start := time.Now()
-		result, err := Merge(inventory, updates)
+		result, err := Merge(target, patch)
 		elapsed := time.Since(start)
 
 		require.NoError(t, err)
 		assert.Equal(t, "revised_0", result.Doc["property_0"])
-		assert.Equal(t, "original_1", result.Doc["property_1"]) // Unchanged
+		assert.Equal(t, "original_1", result.Doc["property_1"])
 
-		// Should handle extensive properties efficiently
 		assert.Less(t, elapsed, 45*time.Millisecond, "Extensive property merge took %v, exceeds threshold", elapsed)
 	})
 
 	t.Run("sequential_operations_stability", func(t *testing.T) {
-		// Test stability of sequential merge operations
-		baseState := map[string]any{"sequence": 0, "metadata": "persistent"}
+		state := map[string]any{"sequence": 0, "metadata": "persistent"}
 
-		const operationCount = 800
+		const iterations = 800
 		var checkpoints []map[string]any
 
-		currentState := baseState
-		for operation := 1; operation <= operationCount; operation++ {
-			modification := map[string]any{"sequence": operation}
-			result, err := Merge(currentState, modification)
+		for i := 1; i <= iterations; i++ {
+			patch := map[string]any{"sequence": i}
+			result, err := Merge(state, patch)
 			require.NoError(t, err)
 
-			currentState = result.Doc
-			if operation%150 == 0 { // Checkpoint every 150th operation
-				checkpoints = append(checkpoints, currentState)
+			state = result.Doc
+			if i%150 == 0 {
+				checkpoints = append(checkpoints, state)
 			}
 		}
 
-		// Verify final state integrity
-		assert.Equal(t, operationCount, currentState["sequence"])
-		assert.Equal(t, "persistent", currentState["metadata"])
+		assert.Equal(t, iterations, state["sequence"])
+		assert.Equal(t, "persistent", state["metadata"])
 
-		// Verify checkpoint consistency
 		for i, checkpoint := range checkpoints {
-			expectedSequence := (i + 1) * 150
-			assert.Equal(t, expectedSequence, checkpoint["sequence"])
+			assert.Equal(t, (i+1)*150, checkpoint["sequence"])
 			assert.Equal(t, "persistent", checkpoint["metadata"])
 		}
 	})
