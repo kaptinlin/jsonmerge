@@ -759,21 +759,16 @@ func TestGoTypeSystem(t *testing.T) {
 			Description *string `json:"description,omitempty"`
 		}
 
-		port := 8080
-		debug := true
-		desc := "test config"
-
 		target := Config{
 			Name:        "app",
-			Port:        &port,
-			Debug:       &debug,
-			Description: &desc,
+			Port:        new(8080),
+			Debug:       new(true),
+			Description: new("test config"),
 		}
 
-		newPort := 9090
 		patch := Config{
 			Name: "updated-app",
-			Port: &newPort,
+			Port: new(9090),
 			// Debug and Description will be nil (omitted)
 		}
 
@@ -946,8 +941,7 @@ func TestConcurrencyAndImmutability(t *testing.T) {
 		var wg sync.WaitGroup
 
 		// Run concurrent merge operations
-		for i := range numGoroutines {
-			goroutineID := i
+		for goroutineID := range numGoroutines {
 			wg.Go(func() {
 				for j := range numOperations {
 					patch := map[string]any{
