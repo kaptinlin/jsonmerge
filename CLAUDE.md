@@ -6,22 +6,22 @@ RFC 7386 JSON Merge Patch implementation for Go with type-safe generics, minimal
 
 ```bash
 # Testing
-make test                # Run all tests with race detection
-make test-verbose        # Run tests with verbose output
-make test-coverage       # Generate coverage report (coverage.html)
-make bench              # Run benchmarks
+task test                # Run all tests with race detection
+task test-verbose        # Run tests with verbose output
+task test-coverage       # Generate coverage report (coverage.html)
+task bench              # Run benchmarks
 
 # Code Quality
-make lint               # Run golangci-lint + mod tidy check
-make fmt                # Format code
-make vet                # Run go vet
+task lint               # Run golangci-lint + mod tidy check
+task fmt                # Format code
+task vet                # Run go vet
 
 # Complete Verification
-make verify             # Run deps, fmt, vet, lint, test
+task verify             # Run deps, fmt, vet, lint, test
 
 # Dependency Management
-make deps               # Download and tidy dependencies
-make clean              # Clean build artifacts and caches
+task deps               # Download and tidy dependencies
+task clean              # Clean build artifacts and caches
 ```
 
 ## Architecture
