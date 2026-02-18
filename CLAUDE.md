@@ -1,296 +1,203 @@
-# CLAUDE.md
+# JSON Merge Patch
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+RFC 7386 JSON Merge Patch implementation for Go with type-safe generics, minimal API, and high performance.
 
-## Repository Overview
+## Commands
 
-This is a **RFC 7386 JSON Merge Patch** implementation for Go. The library provides type-safe, generic-based JSON merge patch operations with compliance to RFC 7386 specification.
-
-**Core Purpose**: Implement RFC 7386 JSON Merge Patch algorithm with type safety, minimal API, and high performance.
-
-## Development Commands
-
-### Testing
 ```bash
-# Run all tests with race detection
-make test
+# Testing
+make test                # Run all tests with race detection
+make test-verbose        # Run tests with verbose output
+make test-coverage       # Generate coverage report (coverage.html)
+make bench              # Run benchmarks
 
-# Run tests with verbose output
-make test-verbose
+# Code Quality
+make lint               # Run golangci-lint + mod tidy check
+make fmt                # Format code
+make vet                # Run go vet
 
-# Generate coverage report (creates coverage.html)
-make test-coverage
+# Complete Verification
+make verify             # Run deps, fmt, vet, lint, test
 
-# Run benchmarks
-make bench
+# Dependency Management
+make deps               # Download and tidy dependencies
+make clean              # Clean build artifacts and caches
 ```
 
-### Linting and Code Quality
-```bash
-# Run all linters (golangci-lint + mod tidy check)
-make lint
+## Architecture
 
-# Run golangci-lint only
-make golangci-lint
+### Core Components
 
-# Format code
-make fmt
+**jsonmerge.go** - Core implementation
+- `Merge[T Document](target, patch T, ...Option) (*Result[T], error)` - Apply RFC 7386 merge patch
+- `Generate[T Document](source, target T) (T, error)` - Create patch between documents
+- `Valid[T Document](patch T) bool` - Validate merge patch
+- `applyPatch(target, patch any) any` - RFC 7386 algorithm (lines 132-163)
+- Type conversion system: `convertToInterface`, `convertFromInterface`
 
-# Run go vet
-make vet
+**types.go** - Type system and options
+- `Document` interface - Generic constraint for supported types ([]byte, string, map[string]any, structs)
+- `Result[T]` - Type-safe wrapper preserving document type
+- `Options` and `Option` - Functional options pattern
+- `Error` - Sentinel error type
+
+### Key Types and Interfaces
+
+```go
+// Document constraint supports multiple JSON representations
+type Document interface {
+    ~[]byte | ~string | map[string]any | any
+}
+
+// Result preserves type through merge operations
+type Result[T Document] struct {
+    Doc T
+}
+
+// Sentinel errors for error checking with errors.Is
+const (
+    ErrMarshal    Error = "marshal failed"
+    ErrUnmarshal  Error = "unmarshal failed"
+    ErrConversion Error = "type conversion failed"
+)
 ```
 
-### Complete Verification
-```bash
-# Run full verification pipeline: deps, fmt, vet, lint, test
-make verify
-```
+## Design Philosophy
 
-### Dependency Management
-```bash
-# Download and tidy dependencies
-make deps
+- **RFC 7386 First** - Every implementation decision prioritizes RFC 7386 compliance. The `applyPatch()` algorithm directly implements RFC 7386 Section 2.
+- **Type Safety Through Generics** - Go 1.26+ generics with Document constraint provide compile-time type safety while supporting structs, maps, JSON bytes, and JSON strings.
+- **Immutable by Default** - Uses `github.com/kaptinlin/deepclone` to prevent side effects. Optional `WithMutate(true)` enables in-place modification for 3x performance improvement.
+- **Minimal API Surface** - Only 3 public functions (Merge, Generate, Valid) keep the API simple and focused.
+- **Zero-Copy Optimization** - `map[string]any` operations have zero conversion overhead; type conversion minimizes JSON marshal/unmarshal cycles.
+- **Benchmark-Driven Performance** - All optimizations verified with benchmarks; failed optimization attempts documented to prevent regression.
 
-# Clean build artifacts and caches
-make clean
-```
+## Coding Rules
 
-### Running Single Tests
+### Must Follow
+
+- Go 1.26+
+- RFC 7386 compliance is non-negotiable:
+  - Objects merge recursively
+  - `null` values delete fields
+  - Non-objects completely replace target
+  - Arrays replace entirely (never element-wise merge)
+  - Primitives replace corresponding target values
+- Immutable operations by default (use deepclone unless WithMutate specified)
+- Go idiomatic error handling:
+  - Define minimal sentinel errors for `errors.Is()` checking
+  - Use `%w` to wrap errors and preserve error chain
+  - Keep error messages lowercase, concise, descriptive
+  - Use `fmt.Errorf` directly, no helper functions like `wrapError()`
+- Keep hot path code inline - function call overhead matters in performance-critical paths
+
+### Forbidden
+
+- No deviation from RFC 7386 algorithm specification
+- No helper function extraction in hot paths (causes 50%+ performance regression)
+- No unused sentinel errors (define only what's necessary)
+- No generic fluff in documentation ("write clean code", "follow best practices")
+- Failed optimization patterns (documented to prevent repetition):
+  - Using `bytes.Equal` instead of string comparison (34% slower)
+  - Extracting helpers from `convertToInterface` (53% slower)
+  - Adding `a == b` fast path in `deepEqual` (panics on uncomparable types)
+  - Using `reflect.DeepEqual` (panics on uncomparable types)
+
+## Testing
+
+All tests use `-race` flag. Test suite includes:
+- RFC 7386 Appendix A compliance tests (all must pass)
+- Edge cases: Unicode, deep nesting, large arrays, mixed types
+- Type safety tests for structs, maps, JSON bytes, JSON strings
+- Benchmark tests for performance verification
+
 ```bash
 # Run specific test
-go test -run TestMerge -v
-
-# Run specific test with race detection
-go test -race -run TestMergeBasic -v
+go test -race -run TestMerge -v
 
 # Run benchmarks for specific function
 go test -bench=BenchmarkMerge -run=^$
 ```
 
-## Architecture Overview
-
-### Core Implementation Philosophy
-
-**RFC 7386 First**: Every implementation decision prioritizes RFC 7386 compliance. The algorithm in `applyPatch()` (jsonmerge.go:132-163) directly implements RFC 7386 Section 2.
-
-**Type Safety Through Generics**: Uses Go 1.26+ generics with `Document` interface constraint to provide compile-time type safety while supporting multiple document types (structs, maps, JSON bytes, JSON strings).
-
-**Immutable by Default**: Uses `github.com/kaptinlin/deepclone` for deep cloning to prevent side effects. Optional `WithMutate(true)` enables in-place modification for performance-critical scenarios (3x faster).
-
-### Key Architectural Components
-
-#### 1. Document Type System (types.go)
-
-```go
-type Document interface {
-    ~[]byte | ~string | map[string]any | any
-}
-```
-
-**Design Purpose**: Type constraint that allows generic functions to accept multiple document formats while maintaining type safety. The `any` case handles struct types through JSON marshaling/unmarshaling.
-
-**Supported Types**:
-- **Structs**: Full support with JSON tags (`json:"field,omitempty"`, `json:"-"`)
-- **map[string]any**: Native format, most efficient
-- **[]byte**: JSON bytes with automatic parsing
-- **string**: JSON strings or raw string values
-- **Primitives**: Direct support for bool, int variants, float variants
-
-#### 2. Core Algorithm (jsonmerge.go:132-163)
-
-```go
-func applyPatch(target, patch any) any
-```
-
-**RFC 7386 Implementation**:
-1. If patch is not an object → return patch (complete replacement)
-2. If target is not an object → create empty object
-3. For each field in patch:
-   - If value is `null` → delete field from target
-   - Otherwise → recursively merge
-
-**Critical Behaviors**:
-- Objects merge recursively
-- Arrays replace entirely (no element-wise merging)
-- `null` values delete fields
-- Non-objects replace target values completely
-
-#### 3. Type Conversion System (jsonmerge.go:239-321)
-
-**convertToInterface[T Document]**: Converts any Document type to `any` for processing
-- Direct passthrough for `map[string]any`
-- JSON unmarshal for `[]byte` and valid JSON strings
-- Marshal→Unmarshal cycle for structs
-
-**convertFromInterface[T Document]**: Converts `any` back to original type
-- Preserves type through generic parameter
-- Efficient for maps (direct cast)
-- JSON round-trip for structs and byte/string types
-
-**Performance Optimization**: Minimizes JSON marshal/unmarshal cycles. Map operations have zero conversion overhead.
-
-#### 4. Functional Options Pattern (types.go:31-47)
-
-```go
-type Option func(*Options)
-func WithMutate(mutate bool) Option
-```
-
-**Design Rationale**: Extensible configuration pattern allowing future options without breaking API. Currently only `Mutate` option exists, but pattern supports adding more configuration options.
-
-**Usage Impact**:
-- Default (immutable): Safe for concurrent use, predictable behavior
-- `WithMutate(true)`: 3x performance improvement, use only when thread safety guaranteed
-
-### API Design
-
-**Minimal Surface**: Only 3 public functions
-- `Merge[T Document](target, patch T, ...Option) (*Result[T], error)` - Apply merge patch
-- `Generate[T Document](source, target T) (T, error)` - Create patch between documents
-- `Valid[T Document](patch T) bool` - Validate merge patch
-
-**Generic Result Type**: `Result[T]` preserves type through operations
-```go
-result, err := jsonmerge.Merge(userStruct, patchStruct)
-// result.Doc is automatically of the same struct type
-```
-
-### Error Handling Architecture
-
-**Go Idiomatic Error Handling** - Follows Go best practices:
-
-**Sentinel Errors** (jsonmerge.go:34-44) - Defined as `const` with custom `Error` type for immutability:
-- `ErrMarshal` - JSON marshaling failed
-- `ErrUnmarshal` - JSON unmarshaling failed
-- `ErrConversion` - Type conversion between document types failed
-
-**Error Wrapping Pattern**:
-```go
-// Use %w to preserve error chain for errors.Is() checking
-fmt.Errorf("%w: %w", ErrMarshal, originalError)
-fmt.Errorf("convert target: %w", err)  // Add context when needed
-```
-
-**Best Practices**:
-- ✅ Define minimal sentinel errors for error type checking with `errors.Is()`
-- ✅ Use `%w` verb to wrap errors and preserve error chain
-- ✅ Error messages are lowercase, concise, and descriptive
-- ✅ No redundant error wrapping - keep it simple and direct
-- ❌ Don't create helper functions like `wrapError()` - violates Go idioms
-- ❌ Don't define unused sentinel errors - keep only what's necessary
-
-## Development Workflow
-
-### Code Quality Standards
-
-**golangci-lint Configuration**:
-- Version: 2.9.0 (managed via `.golangci.version`)
-- Timeout: 5m for Go 1.24+
-- Enabled linters: errcheck, govet, staticcheck, gosec, exhaustive, and 20+ more
-- Examples directory excluded from most linters
-
-**Testing Requirements**:
-- All tests must pass with `-race` flag
-- RFC 7386 Appendix A test cases must all pass
-- Edge cases: Unicode, deep nesting, large arrays, mixed types
-- Benchmark tests verify performance characteristics
-
-**Documentation Standards**:
-- All public types and functions require complete GoDoc comments
-- Comments reference RFC 7386 sections where applicable
-- Examples demonstrate type-safe usage patterns
-
-### Important Implementation Rules
-
-**From .cursor/rules.md**:
-
-1. **RFC 7386 Compliance is Paramount**: Never deviate from RFC 7386 algorithm specification
-2. **Type Safety First**: Leverage Go 1.26+ generics comprehensively
-3. **Immutable by Default**: Use deep cloning unless `WithMutate(true)` specified
-4. **Minimal Dependencies**: Only `github.com/kaptinlin/deepclone` and `github.com/go-json-experiment/json`
-5. **Go Idiomatic Error Handling**:
-   - Define minimal sentinel errors for `errors.Is()` checking
-   - Use `%w` to wrap errors and preserve error chain
-   - Keep error messages lowercase, concise, descriptive
-   - Avoid helper functions like `wrapError()` - use `fmt.Errorf` directly
-   - No unused sentinel errors - define only what's necessary
-
-**Critical RFC 7386 Rules**:
-1. Objects are merged recursively
-2. `null` values delete fields
-3. Non-objects completely replace target
-4. Arrays replace entirely (never element-wise merge)
-5. Primitives replace corresponding target values
-
-## Performance Optimization Guidelines
-
-**Core Principles**:
-- ✅ Benchmark-driven optimization - verify with `make bench` before and after changes
-- ✅ Hot path optimization - keep frequently-called code inline, avoid extra function calls
-- ✅ Simplicity over abstraction - Go runtime already optimizes common operations
-- ❌ Don't extract helper functions in hot paths - causes 50%+ performance regression
-- ❌ Don't blindly trust "optimizations" - measure actual performance impact
-
-**Proven Performance Tips**:
-- Use `WithMutate(true)` for performance-critical scenarios (3x faster)
-- `map[string]any` has zero conversion overhead (most efficient)
-- JSON bytes/strings more efficient than structs for large data
-- Keep critical functions inline - function call overhead matters in hot paths
-
-**Failed Optimization Attempts** (DO NOT REPEAT):
-- ❌ Using `bytes.Equal` instead of `string` comparison → 34% slower (Go runtime optimizes string comparison)
-- ❌ Extracting helper functions from `convertToInterface` → 53% slower (function call overhead in hot path)
-- ❌ Adding `a == b` fast path in `deepEqual` → panic on uncomparable types (slices, maps)
-- ❌ Using `reflect.DeepEqual` → panic on uncomparable types
-
-**Optimization Workflow**:
-1. Run baseline: `make bench > baseline.txt`
-2. Make ONE change at a time
-3. Run benchmarks: `make bench > optimized.txt`
-4. Compare results - if performance regresses, IMMEDIATELY revert
-5. Only keep changes that maintain or improve performance
-
 ## Dependencies
 
-**Required External Dependencies**:
+**Production:**
 - `github.com/go-json-experiment/json` - JSON operations (better performance than stdlib)
 - `github.com/kaptinlin/deepclone` - Deep cloning for immutable operations
 
-**Test Dependencies**:
+**Test:**
 - `github.com/stretchr/testify` - Test assertions
 
-**Go Version**: 1.26+ (uses generics, type inference, modern stdlib)
+## Error Handling
 
-## Examples Directory
+Sentinel errors defined as `const` with custom `Error` type for immutability:
 
-The `examples/` directory contains comprehensive usage examples:
-- `struct-merge/` - Type-safe struct operations with JSON tags
-- `map-merge/` - Dynamic map[string]any merging
-- `json-bytes-merge/` - Raw JSON byte processing
-- `json-string-merge/` - JSON string handling
+```go
+const (
+    ErrMarshal    Error = "marshal failed"    // JSON marshaling failed
+    ErrUnmarshal  Error = "unmarshal failed"  // JSON unmarshaling failed
+    ErrConversion Error = "type conversion failed" // Type conversion failed
+)
+```
 
-Each example demonstrates specific use cases and best practices.
+Use `errors.Is()` for error checking:
 
-## Key Files and Their Purpose
+```go
+result, err := jsonmerge.Merge(target, patch)
+if err != nil {
+    if errors.Is(err, jsonmerge.ErrMarshal) {
+        // Handle marshaling error
+    }
+}
+```
 
-- **jsonmerge.go**: Core implementation (algorithm, type conversion, public API)
-- **types.go**: Type definitions (Document constraint, Result wrapper, Options)
-- **jsonmerge_test.go**: Comprehensive tests including all RFC 7386 test cases
-- **benchmark_test.go**: Performance benchmarks for all core operations
-- **Makefile**: Build automation and quality checks
-- **.golangci.yml**: Linter configuration with 30+ enabled linters
-- **.cursor/rules.md**: Comprehensive development rules for code generation
+Error wrapping pattern: Use `%w` to preserve error chain, add context when needed.
 
-## Critical Design Decisions
+## Performance
 
-**Why go-json-experiment instead of stdlib**: Better performance and modern features while maintaining compatibility.
+### Optimization Principles
 
-**Why deepclone instead of custom implementation**: Reliable, tested deep cloning that handles edge cases (circular references, complex types).
+- Benchmark-driven: verify with `make bench` before and after changes
+- Hot path optimization: keep frequently-called code inline
+- Simplicity over abstraction: Go runtime optimizes common operations
+- Make ONE change at a time, measure impact, revert if performance regresses
 
-**Why functional options pattern**: Future-proof extensibility without breaking API changes.
+### Performance Tips
 
-**Why generic constraints**: Compile-time type safety while supporting multiple document types, preventing runtime type errors.
+- Use `WithMutate(true)` for performance-critical scenarios (3x faster)
+- `map[string]any` has zero conversion overhead (most efficient)
+- JSON bytes/strings more efficient than structs for large data
+- Deep nesting has minimal performance impact
 
-**Why immutable by default**: Predictable behavior, thread safety, easier debugging. Performance mode available when needed.
+### Benchmark Results (Apple M3)
 
-**Why simple error handling**: Following Go idioms - minimal sentinel errors, direct `fmt.Errorf` wrapping, no helper functions. Simplicity and clarity over abstraction.
+```
+BenchmarkMerge-8                  952150     1357 ns/op    1273 B/op   17 allocs/op
+BenchmarkMergeWithMutate-8       2400202      466 ns/op     345 B/op    4 allocs/op
+BenchmarkMergeStructs-8           154684     8722 ns/op    3993 B/op   78 allocs/op
+BenchmarkMergeJSONStrings-8       246922     5458 ns/op    3743 B/op   77 allocs/op
+BenchmarkMergeJSONBytes-8         206040     5934 ns/op    3416 B/op   74 allocs/op
+```
+
+## Linting
+
+golangci-lint v2.9.0 (managed via `.golangci.version`)
+- Timeout: 5m for Go 1.24+
+- 30+ enabled linters including errcheck, govet, staticcheck, gosec, exhaustive
+- Examples directory excluded from most linters
+
+## Agent Skills
+
+Package-local skills in `.agents/skills/`:
+
+- **agent-md-creating** - Generate CLAUDE.md for Go projects
+- **code-simplifying** - Refine recently written Go code for clarity and consistency
+- **committing** - Create conventional commits following project conventions
+- **dependency-selecting** - Select Go dependencies from kaptinlin/agentable ecosystem
+- **go-best-practices** - Google Go coding best practices and style guide
+- **linting** - Set up and run golangci-lint v2
+- **modernizing** - Go 1.20-1.26 modernization guide
+- **ralphy-initializing** - Initialize Ralphy AI coding loop configuration
+- **ralphy-todo-creating** - Create Ralphy TODO.yaml task files
+- **readme-creating** - Generate README.md for Go libraries
+- **releasing** - Guide release process with semantic versioning
+- **testing** - Write Go tests with testify and Go 1.25+ features
