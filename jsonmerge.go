@@ -21,6 +21,7 @@ package jsonmerge
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/go-json-experiment/json"
 	"github.com/kaptinlin/deepclone"
@@ -190,18 +191,58 @@ func generatePatch(source, target any) any {
 	return patch
 }
 
-// deepEqual compares two values for deep equality.
-// Uses JSON marshaling for comparison to avoid panics on uncomparable types.
+// deepEqual compares two values for deep equality using type assertions
+// for common JSON types, with a reflect.DeepEqual fallback for other types.
 func deepEqual(a, b any) bool {
-	aBytes, err := json.Marshal(a)
-	if err != nil {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
 		return false
 	}
-	bBytes, err := json.Marshal(b)
-	if err != nil {
-		return false
+
+	switch va := a.(type) {
+	case bool:
+		vb, ok := b.(bool)
+		return ok && va == vb
+	case float64:
+		vb, ok := b.(float64)
+		return ok && va == vb
+	case int:
+		vb, ok := b.(int)
+		return ok && va == vb
+	case int64:
+		vb, ok := b.(int64)
+		return ok && va == vb
+	case string:
+		vb, ok := b.(string)
+		return ok && va == vb
+	case []any:
+		vb, ok := b.([]any)
+		if !ok || len(va) != len(vb) {
+			return false
+		}
+		for i := range va {
+			if !deepEqual(va[i], vb[i]) {
+				return false
+			}
+		}
+		return true
+	case map[string]any:
+		vb, ok := b.(map[string]any)
+		if !ok || len(va) != len(vb) {
+			return false
+		}
+		for k, vaVal := range va {
+			vbVal, exists := vb[k]
+			if !exists || !deepEqual(vaVal, vbVal) {
+				return false
+			}
+		}
+		return true
+	default:
+		return reflect.DeepEqual(a, b)
 	}
-	return string(aBytes) == string(bBytes)
 }
 
 // convertToInterface converts various document types to a common representation for processing.
