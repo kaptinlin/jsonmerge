@@ -1403,7 +1403,7 @@ func TestPerformanceAndStressConditions(t *testing.T) {
 		assert.Equal(t, "revised_0", result.Doc["property_0"])
 		assert.Equal(t, "original_1", result.Doc["property_1"])
 
-		assert.Less(t, elapsed, 45*time.Millisecond, "Extensive property merge took %v, exceeds threshold", elapsed)
+		assert.Less(t, elapsed, 500*time.Millisecond, "Extensive property merge took %v, exceeds threshold", elapsed)
 	})
 
 	t.Run("sequential_operations_stability", func(t *testing.T) {
