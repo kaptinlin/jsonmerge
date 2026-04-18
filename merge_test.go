@@ -2,6 +2,9 @@ package jsonmerge
 
 import (
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"sync"
 	"testing"
 	"time"
@@ -399,6 +402,47 @@ func BenchmarkMergeLargeArrays(b *testing.B) {
 		_, err := Merge(target, patch)
 		if err != nil {
 			b.Fatal(err)
+		}
+	}
+}
+
+func TestExportedDeclarationsHaveDocComments(t *testing.T) {
+	files := []string{"merge.go", "types.go"}
+
+	for _, name := range files {
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, name, nil, parser.ParseComments)
+		require.NoError(t, err)
+
+		for _, decl := range file.Decls {
+			switch d := decl.(type) {
+			case *ast.GenDecl:
+				for _, spec := range d.Specs {
+					switch s := spec.(type) {
+					case *ast.TypeSpec:
+						if ast.IsExported(s.Name.Name) {
+							require.NotNilf(t, d.Doc, "%s: exported type %s is missing a doc comment", name, s.Name.Name)
+							assert.Contains(t, d.Doc.Text(), s.Name.Name)
+						}
+					case *ast.ValueSpec:
+						for _, ident := range s.Names {
+							if ast.IsExported(ident.Name) {
+								doc := s.Doc
+								if doc == nil {
+									doc = d.Doc
+								}
+								require.NotNilf(t, doc, "%s: exported value %s is missing a doc comment", name, ident.Name)
+								assert.Contains(t, doc.Text(), ident.Name)
+							}
+						}
+					}
+				}
+			case *ast.FuncDecl:
+				if ast.IsExported(d.Name.Name) {
+					require.NotNilf(t, d.Doc, "%s: exported function %s is missing a doc comment", name, d.Name.Name)
+					assert.Contains(t, d.Doc.Text(), d.Name.Name)
+				}
+			}
 		}
 	}
 }

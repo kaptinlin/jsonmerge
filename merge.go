@@ -1,25 +1,10 @@
-// Package jsonmerge provides RFC 7386 JSON Merge Patch implementation.
-// It offers a simple, type-safe API for applying merge patches to JSON documents.
+// Package jsonmerge implements RFC 7386 JSON Merge Patch for Go.
 //
-// Basic usage:
+// It supports structs, map[string]any, []byte, and string documents.
+// Use WithMutate(true) to allow in-place updates when the caller prefers
+// speed over preserving map inputs.
 //
-//	result, err := jsonmerge.Merge(target, patch)
-//	if err != nil {
-//		return err
-//	}
-//	// result.Doc contains the merged document
-//
-// The library supports multiple document types:
-//   - Structs (with full type safety)
-//   - map[string]any (dynamic documents)
-//   - []byte (JSON bytes)
-//   - string (JSON strings)
-//
-// All operations are immutable by default. Use WithMutate(true) for
-// performance-critical scenarios where in-place modification is acceptable.
-//
-// The package returns errors instead of panicking for runtime input failures.
-// It does not expose Must* helpers, and its public API has no documented panic conditions.
+// See https://datatracker.ietf.org/doc/html/rfc7386.
 package jsonmerge
 
 import (
@@ -32,12 +17,12 @@ import (
 	"github.com/kaptinlin/deepclone"
 )
 
-// Error represents a sentinel error type for the jsonmerge package.
+// Error is a sentinel error string.
 type Error string
 
+// Error returns e as a string.
 func (e Error) Error() string { return string(e) }
 
-// Sentinel errors for error checking with errors.Is.
 const (
 	// ErrMarshal indicates JSON marshaling failed.
 	ErrMarshal Error = "marshal failed"
@@ -49,14 +34,9 @@ const (
 	ErrConversion Error = "type conversion failed"
 )
 
-// Merge applies a JSON Merge Patch (RFC 7386) to a target document.
-// It returns a new Result containing the merged document.
-// The operation is immutable by default unless WithMutate(true) is specified.
-//
-// Possible errors (checkable with errors.Is):
-//   - ErrMarshal: JSON marshaling failed during type conversion
-//   - ErrUnmarshal: JSON unmarshaling failed during type conversion
-//   - ErrConversion: type conversion between document types failed
+// Merge applies patch to target according to RFC 7386.
+// By default it preserves map targets; use WithMutate(true) to update them in place.
+// If it fails, the error matches ErrMarshal, ErrUnmarshal, or ErrConversion.
 func Merge[T Document](target, patch T, opts ...Option) (*Result[T], error) {
 	var options Options
 	for _, opt := range opts {
@@ -91,13 +71,8 @@ func Merge[T Document](target, patch T, opts ...Option) (*Result[T], error) {
 	return &Result[T]{Doc: result}, nil
 }
 
-// Generate creates a JSON Merge Patch between source and target documents.
-// The generated patch can be applied to source to produce target.
-//
-// Possible errors (checkable with errors.Is):
-//   - ErrMarshal: JSON marshaling failed during type conversion
-//   - ErrUnmarshal: JSON unmarshaling failed during type conversion
-//   - ErrConversion: type conversion between document types failed
+// Generate returns a merge patch that transforms source into target.
+// If it fails, the error matches ErrMarshal, ErrUnmarshal, or ErrConversion.
 func Generate[T Document](source, target T) (T, error) {
 	var zero T
 
@@ -121,8 +96,7 @@ func Generate[T Document](source, target T) (T, error) {
 	return result, nil
 }
 
-// Valid checks if a patch is a valid JSON Merge Patch.
-// According to RFC 7386, any valid JSON value is a valid merge patch.
+// Valid reports whether patch is accepted as a JSON Merge Patch value.
 func Valid[T Document](patch T) bool {
 	_, err := convertToInterface(patch)
 	return err == nil
