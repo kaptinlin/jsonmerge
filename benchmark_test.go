@@ -1,8 +1,9 @@
 package jsonmerge
 
 import (
-	"maps"
 	"testing"
+
+	"github.com/kaptinlin/deepclone"
 )
 
 // BenchmarkMerge benchmarks the merge operation
@@ -62,7 +63,7 @@ func BenchmarkMergeWithMutate(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		_, err := Merge(maps.Clone(target), patch, WithMutate(true))
+		_, err := Merge(deepclone.Clone(target), patch, WithMutate(true))
 		if err != nil {
 			b.Fatal(err)
 		}

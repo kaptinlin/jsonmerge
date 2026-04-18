@@ -303,18 +303,25 @@ func TestMutateOption(t *testing.T) {
 	})
 
 	t.Run("mutate_option", func(t *testing.T) {
-		original := map[string]any{"name": "John", "age": 30}
-		originalCopy := map[string]any{"name": "John", "age": 30}
-		patch := map[string]any{"name": "Jane"}
+		original := map[string]any{
+			"name": "John",
+			"profile": map[string]any{
+				"active": true,
+			},
+		}
+		patch := map[string]any{
+			"name": "Jane",
+			"profile": map[string]any{
+				"active": false,
+			},
+		}
 
 		result, err := Merge(original, patch, WithMutate(true))
 		require.NoError(t, err)
 
-		// With mutate option, the result should contain the modified data
-		assert.Equal(t, "Jane", result.Doc["name"])
-		// We can't reliably test if original was mutated due to implementation details
-		// but we verify the result is correct
-		assert.NotEqual(t, originalCopy["name"], result.Doc["name"])
+		assert.Equal(t, original, result.Doc)
+		assert.Equal(t, "Jane", original["name"])
+		assert.Equal(t, false, original["profile"].(map[string]any)["active"])
 	})
 
 	t.Run("immutable_replacement_does_not_mutate_map_target", func(t *testing.T) {
