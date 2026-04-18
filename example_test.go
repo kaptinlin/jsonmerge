@@ -58,3 +58,11 @@ func ExampleValid() {
 	// true
 	// false
 }
+
+func ExampleValid_rawString() {
+	fmt.Println(jsonmerge.Valid("raw string"))
+	fmt.Println(jsonmerge.Valid([]byte(`{invalid}`)))
+	// Output:
+	// true
+	// false
+}

@@ -1,36 +1,39 @@
 # Examples
 
-Examples for JSON Merge Patch (RFC 7386) implementation.
+Examples for the JSON Merge Patch (RFC 7386) implementation.
 
 ## Quick Start
 
-Choose any example to run:
+Choose an example to run:
+
 ```bash
-cd struct-merge && go run main.go
-cd map-merge && go run main.go  
-cd json-string-merge && go run main.go
-cd json-bytes-merge && go run main.go
+go run ./examples/struct-merge
+go run ./examples/map-merge
+go run ./examples/json-string-merge
+go run ./examples/json-bytes-merge
 ```
 
 ## Example Structure
 
-Each directory focuses on one document type:
+Each directory focuses on one document form:
 
-- **`struct-merge/`** - Type-safe struct operations
-- **`map-merge/`** - Dynamic map data operations
-- **`json-string-merge/`** - JSON string processing
-- **`json-bytes-merge/`** - Byte array processing
+- `struct-merge` — type-safe struct operations
+- `map-merge` — dynamic map data operations
+- `json-string-merge` — JSON string processing
+- `json-bytes-merge` — JSON byte processing
 
 ## Core Concepts
 
 ### RFC 7386 Key Behaviors
-1. **Recursive object merging** - Nested objects are merged recursively
-2. **null deletes fields** - `null` values remove target fields
-3. **Array replacement** - Arrays are replaced entirely, not element-wise
-4. **New field addition** - New fields from patch are added to target
+
+1. **Recursive object merging** — nested objects are merged recursively.
+2. **`null` deletes fields** — `null` values remove target fields.
+3. **Array replacement** — arrays are replaced entirely, not element by element.
+4. **New field addition** — new fields from the patch are added to the target.
 
 ### Supported Document Types
-- `struct` - Type-safe with compile-time checking
-- `map[string]any` - Dynamic data with runtime flexibility
-- `string` - JSON string format
-- `[]byte` - JSON byte array format
+
+- `struct` — type-safe documents converted through JSON
+- `map[string]any` — dynamic object form
+- `string` — valid JSON strings or raw string scalar values
+- `[]byte` — valid JSON byte slices
