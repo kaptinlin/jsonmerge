@@ -24,7 +24,9 @@ package jsonmerge
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
+	"slices"
 
 	"github.com/go-json-experiment/json"
 	"github.com/kaptinlin/deepclone"
@@ -245,27 +247,10 @@ func deepEqual(a, b any) bool {
 		return ok && va == vb
 	case []any:
 		vb, ok := b.([]any)
-		if !ok || len(va) != len(vb) {
-			return false
-		}
-		for i := range va {
-			if !deepEqual(va[i], vb[i]) {
-				return false
-			}
-		}
-		return true
+		return ok && slices.EqualFunc(va, vb, deepEqual)
 	case map[string]any:
 		vb, ok := b.(map[string]any)
-		if !ok || len(va) != len(vb) {
-			return false
-		}
-		for k, vaVal := range va {
-			vbVal, exists := vb[k]
-			if !exists || !deepEqual(vaVal, vbVal) {
-				return false
-			}
-		}
-		return true
+		return ok && maps.EqualFunc(va, vb, deepEqual)
 	default:
 		return reflect.DeepEqual(a, b)
 	}

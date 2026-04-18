@@ -489,6 +489,25 @@ func TestGenerate(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, map[string]any{}, patch)
 	})
+
+	t.Run("generate_identical_nested_values_from_distinct_allocations", func(t *testing.T) {
+		original := map[string]any{
+			"profile": map[string]any{
+				"name": "John",
+				"tags": []any{"admin", map[string]any{"active": true}},
+			},
+		}
+		updated := map[string]any{
+			"profile": map[string]any{
+				"name": "John",
+				"tags": []any{"admin", map[string]any{"active": true}},
+			},
+		}
+
+		patch, err := Generate(original, updated)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]any{}, patch)
+	})
 }
 
 // TestValid tests the Valid function
