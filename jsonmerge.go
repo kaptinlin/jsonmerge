@@ -72,7 +72,11 @@ func Merge[T Document](target, patch T, opts ...Option) (*Result[T], error) {
 	}
 
 	if !options.Mutate {
-		targetInterface = deepclone.Clone(targetInterface)
+		if _, isPatchObject := patchInterface.(map[string]any); isPatchObject {
+			if targetMap, ok := any(target).(map[string]any); ok && targetMap != nil {
+				targetInterface = deepclone.Clone(targetInterface)
+			}
+		}
 	}
 
 	merged := applyPatch(targetInterface, patchInterface)

@@ -316,6 +316,16 @@ func TestMutateOption(t *testing.T) {
 		// but we verify the result is correct
 		assert.NotEqual(t, originalCopy["name"], result.Doc["name"])
 	})
+
+	t.Run("immutable_replacement_does_not_mutate_map_target", func(t *testing.T) {
+		original := map[string]any{"name": "John", "age": 30}
+
+		result, err := Merge[any](original, "replaced")
+		require.NoError(t, err)
+
+		assert.Equal(t, "replaced", result.Doc)
+		assert.Equal(t, map[string]any{"name": "John", "age": 30}, original)
+	})
 }
 
 // TestErrorCases tests various error conditions
