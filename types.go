@@ -1,4 +1,3 @@
-// types.go defines the core types and functional options for JSON Merge Patch operations.
 package jsonmerge
 
 // Document represents the supported document types for JSON Merge Patch operations.
