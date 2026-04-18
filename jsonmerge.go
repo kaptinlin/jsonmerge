@@ -17,6 +17,9 @@
 //
 // All operations are immutable by default. Use WithMutate(true) for
 // performance-critical scenarios where in-place modification is acceptable.
+//
+// The package returns errors instead of panicking for runtime input failures.
+// It does not expose Must* helpers, and its public API has no documented panic conditions.
 package jsonmerge
 
 import (
@@ -131,7 +134,7 @@ func applyPatch(target, patch any) any {
 	}
 
 	targetObj, isTargetObject := target.(map[string]any)
-	if !isTargetObject {
+	if !isTargetObject || targetObj == nil {
 		targetObj = make(map[string]any)
 	}
 

@@ -320,6 +320,29 @@ func TestMutateOption(t *testing.T) {
 
 // TestErrorCases tests various error conditions
 func TestErrorCases(t *testing.T) {
+	t.Run("nil_map_target", func(t *testing.T) {
+		var target map[string]any
+		patch := map[string]any{
+			"name": "Jane",
+			"profile": map[string]any{
+				"active": true,
+			},
+		}
+
+		result, err := Merge(target, patch)
+		require.NoError(t, err)
+		assert.Equal(t, patch, result.Doc)
+	})
+
+	t.Run("nil_map_target_with_mutate", func(t *testing.T) {
+		var target map[string]any
+		patch := map[string]any{"name": "Jane"}
+
+		result, err := Merge(target, patch, WithMutate(true))
+		require.NoError(t, err)
+		assert.Equal(t, patch, result.Doc)
+	})
+
 	t.Run("invalid_json_target", func(t *testing.T) {
 		invalidJSON := `{"name": invalid}`
 		patch := `{"name": "Jane"}`
