@@ -456,6 +456,20 @@ func TestGenerate(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, updated, result.Doc)
 	})
+
+	t.Run("generate_identical_object_patch", func(t *testing.T) {
+		original := map[string]any{
+			"user": map[string]any{
+				"name": "John",
+				"age":  30,
+			},
+			"active": true,
+		}
+
+		patch, err := Generate(original, original)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]any{}, patch)
+	})
 }
 
 // TestValid tests the Valid function

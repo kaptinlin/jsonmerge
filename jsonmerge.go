@@ -106,6 +106,9 @@ func Generate[T Document](source, target T) (T, error) {
 	}
 
 	patch := generatePatch(sourceInterface, targetInterface)
+	if patchObj, ok := patch.(map[string]any); ok && len(patchObj) == 0 {
+		patch = map[string]any{}
+	}
 
 	result, err := convertFromInterface[T](patch)
 	if err != nil {
@@ -161,11 +164,14 @@ func generatePatch(source, target any) any {
 		return target
 	}
 
-	patch := make(map[string]any)
+	var patch map[string]any
 
 	for key, targetValue := range targetObj {
 		sourceValue, exists := sourceObj[key]
 		if !exists {
+			if patch == nil {
+				patch = make(map[string]any)
+			}
 			patch[key] = targetValue
 			continue
 		}
@@ -174,19 +180,28 @@ func generatePatch(source, target any) any {
 		targetValueObj, isTargetObj := targetValue.(map[string]any)
 		if isSourceObj && isTargetObj {
 			nestedPatch := generatePatch(sourceValueObj, targetValueObj)
-			if m, ok := nestedPatch.(map[string]any); ok && len(m) > 0 {
-				patch[key] = nestedPatch
+			if nestedPatchObj, ok := nestedPatch.(map[string]any); ok && len(nestedPatchObj) > 0 {
+				if patch == nil {
+					patch = make(map[string]any)
+				}
+				patch[key] = nestedPatchObj
 			}
 			continue
 		}
 
 		if !deepEqual(sourceValue, targetValue) {
+			if patch == nil {
+				patch = make(map[string]any)
+			}
 			patch[key] = targetValue
 		}
 	}
 
 	for key := range sourceObj {
 		if _, exists := targetObj[key]; !exists {
+			if patch == nil {
+				patch = make(map[string]any)
+			}
 			patch[key] = nil
 		}
 	}
