@@ -105,10 +105,7 @@ func Generate[T Document](source, target T) (T, error) {
 		return zero, fmt.Errorf("convert target: %w", err)
 	}
 
-	patch := generatePatch(sourceInterface, targetInterface)
-	if patchObj, ok := patch.(map[string]any); ok && len(patchObj) == 0 {
-		patch = map[string]any{}
-	}
+	patch := generatePatch(sourceInterface, targetInterface, true)
 
 	result, err := convertFromInterface[T](patch)
 	if err != nil {
@@ -153,7 +150,7 @@ func applyPatch(target, patch any) any {
 }
 
 // generatePatch creates a patch that transforms source into target.
-func generatePatch(source, target any) any {
+func generatePatch(source, target any, preserveEmptyObject bool) any {
 	targetObj, isTargetObject := target.(map[string]any)
 	if !isTargetObject {
 		return target
@@ -179,12 +176,12 @@ func generatePatch(source, target any) any {
 		sourceValueObj, isSourceObj := sourceValue.(map[string]any)
 		targetValueObj, isTargetObj := targetValue.(map[string]any)
 		if isSourceObj && isTargetObj {
-			nestedPatch := generatePatch(sourceValueObj, targetValueObj)
-			if nestedPatchObj, ok := nestedPatch.(map[string]any); ok && len(nestedPatchObj) > 0 {
+			nestedPatch := generatePatch(sourceValueObj, targetValueObj, false)
+			if nestedPatch != nil {
 				if patch == nil {
 					patch = make(map[string]any)
 				}
-				patch[key] = nestedPatchObj
+				patch[key] = nestedPatch
 			}
 			continue
 		}
@@ -204,6 +201,13 @@ func generatePatch(source, target any) any {
 			}
 			patch[key] = nil
 		}
+	}
+
+	if patch == nil {
+		if preserveEmptyObject {
+			return map[string]any{}
+		}
+		return nil
 	}
 
 	return patch

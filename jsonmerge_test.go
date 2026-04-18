@@ -451,6 +451,15 @@ func TestGenerate(t *testing.T) {
 		patch, err := Generate(original, updated)
 		require.NoError(t, err)
 
+		expectedPatch := map[string]any{
+			"user": map[string]any{
+				"name":  "Jane",
+				"email": "jane@example.com",
+				"age":   nil,
+			},
+		}
+		assert.Equal(t, expectedPatch, patch)
+
 		// Apply the generated patch
 		result, err := Merge(original, patch)
 		require.NoError(t, err)
