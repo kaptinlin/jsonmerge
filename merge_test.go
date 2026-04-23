@@ -1553,7 +1553,6 @@ func TestConcurrencyAndImmutability(t *testing.T) {
 
 		// Run concurrent merge operations
 		for goroutineID := range numGoroutines {
-			goroutineID := goroutineID
 			wg.Go(func() {
 				for j := range numOperations {
 					patch := map[string]any{
