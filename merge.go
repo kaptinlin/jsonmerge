@@ -210,12 +210,6 @@ func deepEqual(a, b any) bool {
 	case float64:
 		vb, ok := b.(float64)
 		return ok && va == vb
-	case int:
-		vb, ok := b.(int)
-		return ok && va == vb
-	case int64:
-		vb, ok := b.(int64)
-		return ok && va == vb
 	case string:
 		vb, ok := b.(string)
 		return ok && va == vb

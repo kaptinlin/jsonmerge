@@ -1,8 +1,8 @@
 package jsonmerge
 
-// Document is the set of types supported by Merge, Generate, and Valid.
+// Document is the type constraint used by Merge, Generate, and Valid.
 type Document interface {
-	~[]byte | ~string | map[string]any | any
+	any
 }
 
 // Result holds a merged document.

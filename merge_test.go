@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-json-experiment/json"
+	"github.com/google/go-cmp/cmp"
 	"github.com/kaptinlin/deepclone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,6 +38,7 @@ func (*flakyDocument) UnmarshalJSON([]byte) error {
 // TestRFC7386Compliance tests all examples from RFC 7386 Appendix A
 // Reference: https://datatracker.ietf.org/doc/html/rfc7386#appendix-A
 func TestRFC7386Compliance(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name     string
 		target   string
@@ -186,6 +188,7 @@ func TestRFC7386Compliance(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result, err := Merge(tt.target, tt.patch)
 			require.NoError(t, err)
 			assert.JSONEq(t, tt.expected, result.Doc)
@@ -427,7 +430,9 @@ func BenchmarkMergeLargeArrays(b *testing.B) {
 
 // TestTypeSafety tests that the library maintains type safety with generic parameters
 func TestTypeSafety(t *testing.T) {
+	t.Parallel()
 	t.Run("struct_type_safety", func(t *testing.T) {
+		t.Parallel()
 		type User struct {
 			Name  string `json:"name"`
 			Email string `json:"email,omitempty"`
@@ -450,6 +455,7 @@ func TestTypeSafety(t *testing.T) {
 	})
 
 	t.Run("map_type_safety", func(t *testing.T) {
+		t.Parallel()
 		target := map[string]any{"name": "John", "age": 30}
 		patch := map[string]any{"name": "Jane", "email": "jane@example.com"}
 
@@ -461,10 +467,13 @@ func TestTypeSafety(t *testing.T) {
 			"age":   30,
 			"email": "jane@example.com",
 		}
-		assert.Equal(t, expected, result.Doc)
+		if diff := cmp.Diff(expected, result.Doc); diff != "" {
+			t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
+		}
 	})
 
 	t.Run("json_bytes_type_safety", func(t *testing.T) {
+		t.Parallel()
 		target := []byte(`{"name":"John","age":30}`)
 		patch := []byte(`{"name":"Jane","email":"jane@example.com"}`)
 
@@ -474,10 +483,13 @@ func TestTypeSafety(t *testing.T) {
 		var actualMap, expectedMap map[string]any
 		require.NoError(t, json.Unmarshal(result.Doc, &actualMap))
 		require.NoError(t, json.Unmarshal([]byte(`{"name":"Jane","age":30,"email":"jane@example.com"}`), &expectedMap))
-		assert.Equal(t, expectedMap, actualMap)
+		if diff := cmp.Diff(expectedMap, actualMap); diff != "" {
+			t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
+		}
 	})
 
 	t.Run("json_string_type_safety", func(t *testing.T) {
+		t.Parallel()
 		target := `{"name":"John","age":30}`
 		patch := `{"name":"Jane","email":"jane@example.com"}`
 
@@ -487,12 +499,15 @@ func TestTypeSafety(t *testing.T) {
 		var actualMap, expectedMap map[string]any
 		require.NoError(t, json.Unmarshal([]byte(result.Doc), &actualMap))
 		require.NoError(t, json.Unmarshal([]byte(`{"name":"Jane","age":30,"email":"jane@example.com"}`), &expectedMap))
-		assert.Equal(t, expectedMap, actualMap)
+		if diff := cmp.Diff(expectedMap, actualMap); diff != "" {
+			t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
+		}
 	})
 }
 
 // TestComplexNestedStructs tests complex nested data structures
 func TestComplexNestedStructs(t *testing.T) {
+	t.Parallel()
 	type Address struct {
 		Street  string `json:"street"`
 		City    string `json:"city"`
@@ -539,13 +554,17 @@ func TestComplexNestedStructs(t *testing.T) {
 	assert.Equal(t, "San Francisco", result.Doc.Address.City)
 	assert.Equal(t, "", result.Doc.Address.Street)  // Zero value since not in patch
 	assert.Equal(t, "", result.Doc.Address.Country) // Zero value since not in patch
-	assert.Equal(t, []string{"engineer"}, result.Doc.Tags)
+	if diff := cmp.Diff([]string{"engineer"}, result.Doc.Tags); diff != "" {
+		t.Errorf("Merge() tags mismatch (-want +got):\n%s", diff)
+	}
 	assert.True(t, result.Doc.Created.IsZero()) // Zero value since not in patch
 }
 
 // TestMutateOption tests the WithMutate option for in-place modification
 func TestMutateOption(t *testing.T) {
+	t.Parallel()
 	t.Run("immutable_by_default", func(t *testing.T) {
+		t.Parallel()
 		original := map[string]any{"name": "John", "age": 30}
 		patch := map[string]any{"name": "Jane"}
 
@@ -557,6 +576,7 @@ func TestMutateOption(t *testing.T) {
 	})
 
 	t.Run("immutable_by_default_preserves_nested_maps", func(t *testing.T) {
+		t.Parallel()
 		original := map[string]any{
 			"profile": map[string]any{
 				"active": true,
@@ -581,6 +601,7 @@ func TestMutateOption(t *testing.T) {
 	})
 
 	t.Run("mutate_option", func(t *testing.T) {
+		t.Parallel()
 		original := map[string]any{
 			"name": "John",
 			"profile": map[string]any{
@@ -597,25 +618,32 @@ func TestMutateOption(t *testing.T) {
 		result, err := Merge(original, patch, WithMutate(true))
 		require.NoError(t, err)
 
-		assert.Equal(t, original, result.Doc)
+		if diff := cmp.Diff(original, result.Doc); diff != "" {
+			t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
+		}
 		assert.Equal(t, "Jane", original["name"])
 		assert.Equal(t, false, original["profile"].(map[string]any)["active"])
 	})
 
 	t.Run("immutable_replacement_does_not_mutate_map_target", func(t *testing.T) {
+		t.Parallel()
 		original := map[string]any{"name": "John", "age": 30}
 
 		result, err := Merge[any](original, "replaced")
 		require.NoError(t, err)
 
 		assert.Equal(t, "replaced", result.Doc)
-		assert.Equal(t, map[string]any{"name": "John", "age": 30}, original)
+		if diff := cmp.Diff(map[string]any{"name": "John", "age": 30}, original); diff != "" {
+			t.Errorf("Merge() target mutated (-want +got):\n%s", diff)
+		}
 	})
 }
 
 // TestErrorCases tests various error conditions
 func TestErrorCases(t *testing.T) {
+	t.Parallel()
 	t.Run("nil_map_target", func(t *testing.T) {
+		t.Parallel()
 		var target map[string]any
 		patch := map[string]any{
 			"name": "Jane",
@@ -626,19 +654,25 @@ func TestErrorCases(t *testing.T) {
 
 		result, err := Merge(target, patch)
 		require.NoError(t, err)
-		assert.Equal(t, patch, result.Doc)
+		if diff := cmp.Diff(patch, result.Doc); diff != "" {
+			t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
+		}
 	})
 
 	t.Run("nil_map_target_with_mutate", func(t *testing.T) {
+		t.Parallel()
 		var target map[string]any
 		patch := map[string]any{"name": "Jane"}
 
 		result, err := Merge(target, patch, WithMutate(true))
 		require.NoError(t, err)
-		assert.Equal(t, patch, result.Doc)
+		if diff := cmp.Diff(patch, result.Doc); diff != "" {
+			t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
+		}
 	})
 
 	t.Run("invalid_json_target", func(t *testing.T) {
+		t.Parallel()
 		invalidJSON := `{"name": invalid}`
 		patch := `{"name": "Jane"}`
 
@@ -651,6 +685,7 @@ func TestErrorCases(t *testing.T) {
 	})
 
 	t.Run("invalid_json_patch", func(t *testing.T) {
+		t.Parallel()
 		target := `{"name": "John"}`
 		invalidPatch := `{"name": invalid}`
 
@@ -662,6 +697,7 @@ func TestErrorCases(t *testing.T) {
 	})
 
 	t.Run("invalid_json_bytes", func(t *testing.T) {
+		t.Parallel()
 		invalidBytes := []byte(`{"name": invalid}`)
 		patch := []byte(`{"name": "Jane"}`)
 
@@ -671,6 +707,7 @@ func TestErrorCases(t *testing.T) {
 	})
 
 	t.Run("merge_wraps_target_conversion_errors", func(t *testing.T) {
+		t.Parallel()
 		patch := flakyDocument{value: "next"}
 
 		_, err := Merge(flakyDocument{failMarshal: true}, patch)
@@ -679,6 +716,7 @@ func TestErrorCases(t *testing.T) {
 	})
 
 	t.Run("merge_wraps_patch_conversion_errors", func(t *testing.T) {
+		t.Parallel()
 		target := flakyDocument{value: "current"}
 
 		_, err := Merge(target, flakyDocument{failMarshal: true})
@@ -687,6 +725,7 @@ func TestErrorCases(t *testing.T) {
 	})
 
 	t.Run("merge_wraps_result_conversion_errors", func(t *testing.T) {
+		t.Parallel()
 		target := flakyDocument{value: "current"}
 		patch := flakyDocument{value: "next"}
 
@@ -696,6 +735,7 @@ func TestErrorCases(t *testing.T) {
 	})
 
 	t.Run("extremely_malformed_json", func(t *testing.T) {
+		t.Parallel()
 		malformedCases := [][]byte{
 			[]byte(`[[[[`),
 			[]byte(`}}}}`),
@@ -706,6 +746,7 @@ func TestErrorCases(t *testing.T) {
 
 		for i, malformed := range malformedCases {
 			t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
+				t.Parallel()
 				_, err := Merge(malformed, []byte(`{"valid": "patch"}`))
 				assert.Error(t, err, "Should error on malformed JSON bytes")
 			})
@@ -715,7 +756,9 @@ func TestErrorCases(t *testing.T) {
 
 // TestGenerate tests the Generate function
 func TestGenerate(t *testing.T) {
+	t.Parallel()
 	t.Run("generate_basic_patch", func(t *testing.T) {
+		t.Parallel()
 		original := map[string]any{
 			"name": "John",
 			"age":  30,
@@ -737,15 +780,20 @@ func TestGenerate(t *testing.T) {
 			"email": "jane@example.com",
 			"city":  nil, // Indicates deletion
 		}
-		assert.Equal(t, expectedPatch, patch)
+		if diff := cmp.Diff(expectedPatch, patch); diff != "" {
+			t.Errorf("Generate() patch mismatch (-want +got):\n%s", diff)
+		}
 
 		// Verify the generated patch works
 		result, err := Merge(original, patch)
 		require.NoError(t, err)
-		assert.Equal(t, updated, result.Doc)
+		if diff := cmp.Diff(updated, result.Doc); diff != "" {
+			t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
+		}
 	})
 
 	t.Run("generate_nested_patch", func(t *testing.T) {
+		t.Parallel()
 		original := map[string]any{
 			"user": map[string]any{
 				"name": "John",
@@ -777,15 +825,20 @@ func TestGenerate(t *testing.T) {
 				"age":   nil,
 			},
 		}
-		assert.Equal(t, expectedPatch, patch)
+		if diff := cmp.Diff(expectedPatch, patch); diff != "" {
+			t.Errorf("Generate() patch mismatch (-want +got):\n%s", diff)
+		}
 
 		// Apply the generated patch
 		result, err := Merge(original, patch)
 		require.NoError(t, err)
-		assert.Equal(t, updated, result.Doc)
+		if diff := cmp.Diff(updated, result.Doc); diff != "" {
+			t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
+		}
 	})
 
 	t.Run("generate_identical_object_patch", func(t *testing.T) {
+		t.Parallel()
 		original := map[string]any{
 			"user": map[string]any{
 				"name": "John",
@@ -796,10 +849,13 @@ func TestGenerate(t *testing.T) {
 
 		patch, err := Generate(original, original)
 		require.NoError(t, err)
-		assert.Equal(t, map[string]any{}, patch)
+		if diff := cmp.Diff(map[string]any{}, patch); diff != "" {
+			t.Errorf("Generate() patch mismatch (-want +got):\n%s", diff)
+		}
 	})
 
 	t.Run("generate_identical_nested_values_from_distinct_allocations", func(t *testing.T) {
+		t.Parallel()
 		original := map[string]any{
 			"profile": map[string]any{
 				"name": "John",
@@ -815,34 +871,43 @@ func TestGenerate(t *testing.T) {
 
 		patch, err := Generate(original, updated)
 		require.NoError(t, err)
-		assert.Equal(t, map[string]any{}, patch)
+		if diff := cmp.Diff(map[string]any{}, patch); diff != "" {
+			t.Errorf("Generate() patch mismatch (-want +got):\n%s", diff)
+		}
 	})
 
 	t.Run("generate_replaces_scalar_source_with_object_target", func(t *testing.T) {
+		t.Parallel()
 		patch, err := Generate[any]("draft", map[string]any{"status": "published"})
 		require.NoError(t, err)
-		assert.Equal(t, map[string]any{"status": "published"}, patch)
+		if diff := cmp.Diff(map[string]any{"status": "published"}, patch); diff != "" {
+			t.Errorf("Generate() patch mismatch (-want +got):\n%s", diff)
+		}
 	})
 
 	t.Run("generate_replaces_object_source_with_scalar_target", func(t *testing.T) {
+		t.Parallel()
 		patch, err := Generate[any](map[string]any{"status": "draft"}, "published")
 		require.NoError(t, err)
 		assert.Equal(t, "published", patch)
 	})
 
 	t.Run("generate_wraps_source_conversion_errors", func(t *testing.T) {
+		t.Parallel()
 		_, err := Generate(flakyDocument{failMarshal: true}, flakyDocument{value: "next"})
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMarshal)
 	})
 
 	t.Run("generate_wraps_target_conversion_errors", func(t *testing.T) {
+		t.Parallel()
 		_, err := Generate(flakyDocument{value: "current"}, flakyDocument{failMarshal: true})
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMarshal)
 	})
 
 	t.Run("generate_wraps_patch_conversion_errors", func(t *testing.T) {
+		t.Parallel()
 		_, err := Generate(flakyDocument{value: "current"}, flakyDocument{value: "next"})
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrUnmarshal)
@@ -850,18 +915,23 @@ func TestGenerate(t *testing.T) {
 }
 
 func TestMapResultConversionGuard(t *testing.T) {
+	t.Parallel()
 	result, err := Merge[map[string]any](map[string]any{"name": "John"}, map[string]any{"name": nil})
 	require.NoError(t, err)
-	assert.Equal(t, map[string]any{}, result.Doc)
+	if diff := cmp.Diff(map[string]any{}, result.Doc); diff != "" {
+		t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
+	}
 }
 
 func TestConvertFromInterfaceMapGuard(t *testing.T) {
+	t.Parallel()
 	_, err := convertFromInterface[map[string]any]("replaced")
 	require.Error(t, err)
 	require.ErrorIs(t, err, ErrConversion)
 }
 
 func TestGenerateNilPatchForNestedEqualObjects(t *testing.T) {
+	t.Parallel()
 	patch := generatePatch(
 		map[string]any{"profile": map[string]any{"name": "John"}},
 		map[string]any{"profile": map[string]any{"name": "John"}},
@@ -872,36 +942,51 @@ func TestGenerateNilPatchForNestedEqualObjects(t *testing.T) {
 }
 
 func TestDeepEqualCoverage(t *testing.T) {
+	t.Parallel()
 	t.Run("nil_handling", func(t *testing.T) {
+		t.Parallel()
 		assert.True(t, deepEqual(nil, nil))
 		assert.False(t, deepEqual(nil, 1))
 	})
 
 	t.Run("numeric_type_mismatch", func(t *testing.T) {
+		t.Parallel()
 		assert.False(t, deepEqual(float64(1), 1))
 		assert.False(t, deepEqual(int64(1), 1))
 	})
 
+	t.Run("reflect_fallback_for_non_json_numeric_types", func(t *testing.T) {
+		t.Parallel()
+		assert.True(t, deepEqual(int(1), int(1)))
+		assert.True(t, deepEqual(int64(1), int64(1)))
+		assert.False(t, deepEqual(int64(1), int64(2)))
+	})
+
 	t.Run("reflect_fallback_for_typed_arrays", func(t *testing.T) {
+		t.Parallel()
 		assert.True(t, deepEqual([2]int{1, 2}, [2]int{1, 2}))
 		assert.False(t, deepEqual([2]int{1, 2}, [2]int{2, 1}))
 	})
 }
 
 func TestStringAndBytesConversionErrors(t *testing.T) {
+	t.Parallel()
 	t.Run("convert_from_interface_string_wraps_marshal_errors", func(t *testing.T) {
+		t.Parallel()
 		_, err := convertFromInterface[string](string([]byte{0xff}))
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMarshal)
 	})
 
 	t.Run("convert_from_interface_bytes_wraps_marshal_errors", func(t *testing.T) {
+		t.Parallel()
 		_, err := convertFromInterface[[]byte](string([]byte{0xff}))
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMarshal)
 	})
 
 	t.Run("convert_from_interface_wraps_unmarshal_errors_for_typed_documents", func(t *testing.T) {
+		t.Parallel()
 		_, err := convertFromInterface[flakyDocument]("next")
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrUnmarshal)
@@ -910,7 +995,9 @@ func TestStringAndBytesConversionErrors(t *testing.T) {
 
 // TestValid tests the Valid function
 func TestValid(t *testing.T) {
+	t.Parallel()
 	t.Run("valid_patches", func(t *testing.T) {
+		t.Parallel()
 		validPatches := []any{
 			map[string]any{"name": "Jane"},
 			`{"name": "Jane"}`,
@@ -927,6 +1014,7 @@ func TestValid(t *testing.T) {
 	})
 
 	t.Run("invalid_patches", func(t *testing.T) {
+		t.Parallel()
 		// Only JSON bytes with invalid JSON should be invalid
 		// Invalid JSON strings are treated as raw strings (valid)
 		invalidPatches := []any{
@@ -939,6 +1027,7 @@ func TestValid(t *testing.T) {
 	})
 
 	t.Run("complex_valid_patches", func(t *testing.T) {
+		t.Parallel()
 		complexPatches := []any{
 			map[string]any{
 				"nested": map[string]any{
@@ -958,7 +1047,9 @@ func TestValid(t *testing.T) {
 
 // TestSophisticatedPatchGeneration tests Generate function with complex transformation scenarios
 func TestSophisticatedPatchGeneration(t *testing.T) {
+	t.Parallel()
 	t.Run("collection_transformation_analysis", func(t *testing.T) {
+		t.Parallel()
 		source := map[string]any{
 			"resources": []any{"server1", "server2", "server3"},
 			"capacity":  100,
@@ -976,15 +1067,20 @@ func TestSophisticatedPatchGeneration(t *testing.T) {
 			"resources": []any{"server4", "server5"},
 			"capacity":  75,
 		}
-		assert.Equal(t, expected, patch)
+		if diff := cmp.Diff(expected, patch); diff != "" {
+			t.Errorf("Generate() patch mismatch (-want +got):\n%s", diff)
+		}
 
 		// Verify patch application achieves target state
 		result, err := Merge(source, patch)
 		require.NoError(t, err)
-		assert.Equal(t, target, result.Doc)
+		if diff := cmp.Diff(target, result.Doc); diff != "" {
+			t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
+		}
 	})
 
 	t.Run("datatype_migration_detection", func(t *testing.T) {
+		t.Parallel()
 		source := map[string]any{
 			"identifier":  "user123",
 			"preferences": map[string]any{"theme": "light"},
@@ -1002,15 +1098,20 @@ func TestSophisticatedPatchGeneration(t *testing.T) {
 			"identifier":  12345,
 			"preferences": []any{"dark_mode", "notifications"},
 		}
-		assert.Equal(t, expected, patch)
+		if diff := cmp.Diff(expected, patch); diff != "" {
+			t.Errorf("Generate() patch mismatch (-want +got):\n%s", diff)
+		}
 
 		// Verify patch achieves schema transformation
 		result, err := Merge(source, patch)
 		require.NoError(t, err)
-		assert.Equal(t, target, result.Doc)
+		if diff := cmp.Diff(target, result.Doc); diff != "" {
+			t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
+		}
 	})
 
 	t.Run("optimized_differential_generation", func(t *testing.T) {
+		t.Parallel()
 		source := map[string]any{
 			"database": map[string]any{
 				"host": "localhost",
@@ -1057,18 +1158,24 @@ func TestSophisticatedPatchGeneration(t *testing.T) {
 				"file":  "/var/log/app.log",
 			},
 		}
-		assert.Equal(t, expected, patch)
+		if diff := cmp.Diff(expected, patch); diff != "" {
+			t.Errorf("Generate() patch mismatch (-want +got):\n%s", diff)
+		}
 
 		// Verify patch application produces correct result
 		result, err := Merge(source, patch)
 		require.NoError(t, err)
-		assert.Equal(t, target, result.Doc)
+		if diff := cmp.Diff(target, result.Doc); diff != "" {
+			t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
+		}
 	})
 }
 
 // TestOperationalReliabilityAndConsistency tests library reliability across diverse usage patterns
 func TestOperationalReliabilityAndConsistency(t *testing.T) {
+	t.Parallel()
 	t.Run("sequential_state_transitions", func(t *testing.T) {
+		t.Parallel()
 		state := map[string]any{"phase": 0}
 
 		for phase := 1; phase <= 12; phase++ {
@@ -1081,6 +1188,7 @@ func TestOperationalReliabilityAndConsistency(t *testing.T) {
 	})
 
 	t.Run("deterministic_operation_behavior", func(t *testing.T) {
+		t.Parallel()
 		target := map[string]any{"flag": "enabled", "score": 85}
 		patch := map[string]any{"flag": "enabled"} // Identical value
 
@@ -1090,10 +1198,13 @@ func TestOperationalReliabilityAndConsistency(t *testing.T) {
 		second, err := Merge(first.Doc, patch)
 		require.NoError(t, err)
 
-		assert.Equal(t, first.Doc, second.Doc)
+		if diff := cmp.Diff(first.Doc, second.Doc); diff != "" {
+			t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
+		}
 	})
 
 	t.Run("selective_updates_in_large_datasets", func(t *testing.T) {
+		t.Parallel()
 		dataset := make(map[string]any)
 		for i := range 1200 {
 			dataset[fmt.Sprintf("record_%d", i)] = fmt.Sprintf("data_%d", i)
@@ -1122,7 +1233,9 @@ func TestOperationalReliabilityAndConsistency(t *testing.T) {
 
 // TestRFC7386EdgeCases tests additional edge cases and boundary conditions
 func TestRFC7386EdgeCases(t *testing.T) {
+	t.Parallel()
 	t.Run("unicode_handling", func(t *testing.T) {
+		t.Parallel()
 		target := `{"name":"José","city":"São Paulo"}`
 		patch := `{"name":"María","country":"España"}`
 		expected := `{"name":"María","city":"São Paulo","country":"España"}`
@@ -1133,6 +1246,7 @@ func TestRFC7386EdgeCases(t *testing.T) {
 	})
 
 	t.Run("large_numbers", func(t *testing.T) {
+		t.Parallel()
 		target := `{"bigint":9223372036854775807,"smallint":-9223372036854775808}`
 		patch := `{"bigint":1234567890123456789,"newfloat":1.7976931348623157e+308}`
 		expected := `{"bigint":1234567890123456789,"smallint":-9223372036854775808,"newfloat":1.7976931348623157e+308}`
@@ -1143,6 +1257,7 @@ func TestRFC7386EdgeCases(t *testing.T) {
 	})
 
 	t.Run("special_float_values", func(t *testing.T) {
+		t.Parallel()
 		// Note: JSON doesn't support NaN or Infinity, but we test regular floats
 		target := `{"pi":3.14159,"zero":0.0,"negative":-123.456}`
 		patch := `{"pi":3.141592653589793,"epsilon":2.220446049250313e-16}`
@@ -1154,6 +1269,7 @@ func TestRFC7386EdgeCases(t *testing.T) {
 	})
 
 	t.Run("empty_arrays_and_objects", func(t *testing.T) {
+		t.Parallel()
 		target := `{"empty_obj":{},"empty_arr":[],"data":"value"}`
 		patch := `{"empty_obj":{"new":"field"},"empty_arr":[1,2,3],"new_empty":{}}`
 		expected := `{"empty_obj":{"new":"field"},"empty_arr":[1,2,3],"data":"value","new_empty":{}}`
@@ -1164,6 +1280,7 @@ func TestRFC7386EdgeCases(t *testing.T) {
 	})
 
 	t.Run("deeply_nested_structures", func(t *testing.T) {
+		t.Parallel()
 		target := `{"level1":{"level2":{"level3":{"level4":{"value":"deep"}}}}}`
 		patch := `{"level1":{"level2":{"level3":{"level4":{"value":"updated","new":"field"},"new_level4":"added"}}}}`
 		expected := `{"level1":{"level2":{"level3":{"level4":{"value":"updated","new":"field"},"new_level4":"added"}}}}`
@@ -1174,6 +1291,7 @@ func TestRFC7386EdgeCases(t *testing.T) {
 	})
 
 	t.Run("mixed_array_content", func(t *testing.T) {
+		t.Parallel()
 		target := `{"mixed":[1,"string",{"obj":"value"},null,true]}`
 		patch := `{"mixed":["new",42,false]}`
 		expected := `{"mixed":["new",42,false]}`
@@ -1184,6 +1302,7 @@ func TestRFC7386EdgeCases(t *testing.T) {
 	})
 
 	t.Run("null_handling_in_nested_objects", func(t *testing.T) {
+		t.Parallel()
 		target := `{"a":{"b":{"c":"keep","d":"delete"},"e":"preserve"}}`
 		patch := `{"a":{"b":{"d":null,"f":"add"}}}`
 		expected := `{"a":{"b":{"c":"keep","f":"add"},"e":"preserve"}}`
@@ -1196,7 +1315,9 @@ func TestRFC7386EdgeCases(t *testing.T) {
 
 // TestGoTypeSystem tests Go-specific type handling and edge cases
 func TestGoTypeSystem(t *testing.T) {
+	t.Parallel()
 	t.Run("interface_any_handling", func(t *testing.T) {
+		t.Parallel()
 		target := map[string]any{
 			"string": "value",
 			"int":    42,
@@ -1221,10 +1342,13 @@ func TestGoTypeSystem(t *testing.T) {
 			"null":   nil,
 			"new":    "added",
 		}
-		assert.Equal(t, expected, result.Doc)
+		if diff := cmp.Diff(expected, result.Doc); diff != "" {
+			t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
+		}
 	})
 
 	t.Run("pointer_fields_in_structs", func(t *testing.T) {
+		t.Parallel()
 		type Config struct {
 			Name        string  `json:"name"`
 			Port        *int    `json:"port,omitempty"`
@@ -1257,6 +1381,7 @@ func TestGoTypeSystem(t *testing.T) {
 	})
 
 	t.Run("slice_and_array_types", func(t *testing.T) {
+		t.Parallel()
 		type Data struct {
 			Slice []string `json:"slice"`
 			Array [3]int   `json:"array"`
@@ -1278,12 +1403,19 @@ func TestGoTypeSystem(t *testing.T) {
 		result, err := Merge(target, patch)
 		require.NoError(t, err)
 
-		assert.Equal(t, []string{"x", "y"}, result.Doc.Slice)
-		assert.Equal(t, [3]int{10, 20, 30}, result.Doc.Array)
-		assert.Equal(t, []any{false, "new"}, result.Doc.Mixed)
+		if diff := cmp.Diff([]string{"x", "y"}, result.Doc.Slice); diff != "" {
+			t.Errorf("Merge() slice mismatch (-want +got):\n%s", diff)
+		}
+		if diff := cmp.Diff([3]int{10, 20, 30}, result.Doc.Array); diff != "" {
+			t.Errorf("Merge() array mismatch (-want +got):\n%s", diff)
+		}
+		if diff := cmp.Diff([]any{false, "new"}, result.Doc.Mixed); diff != "" {
+			t.Errorf("Merge() slice mismatch (-want +got):\n%s", diff)
+		}
 	})
 
 	t.Run("embedded_structs", func(t *testing.T) {
+		t.Parallel()
 		type Address struct {
 			Street string `json:"street"`
 			City   string `json:"city"`
@@ -1321,6 +1453,7 @@ func TestGoTypeSystem(t *testing.T) {
 	})
 
 	t.Run("custom_json_tags", func(t *testing.T) {
+		t.Parallel()
 		type Item struct {
 			ID          int     `json:"id"`
 			Name        string  `json:"item_name"`
@@ -1357,7 +1490,9 @@ func TestGoTypeSystem(t *testing.T) {
 
 // TestMediaTypeCompliance tests RFC 7386 media type requirements
 func TestMediaTypeCompliance(t *testing.T) {
+	t.Parallel()
 	t.Run("application_merge_patch_json_semantics", func(t *testing.T) {
+		t.Parallel()
 		// Test that our implementation follows the semantics required for
 		// application/merge-patch+json media type as defined in RFC 7386 Section 4
 
@@ -1401,7 +1536,9 @@ func TestMediaTypeCompliance(t *testing.T) {
 
 // TestConcurrencyAndImmutability tests thread safety and immutability guarantees
 func TestConcurrencyAndImmutability(t *testing.T) {
+	t.Parallel()
 	t.Run("immutable_operations_are_thread_safe", func(t *testing.T) {
+		t.Parallel()
 		target := map[string]any{
 			"counter": 0,
 			"data":    []string{"a", "b", "c"},
@@ -1411,10 +1548,12 @@ func TestConcurrencyAndImmutability(t *testing.T) {
 		const numOperations = 10
 
 		results := make([]*Result[map[string]any], numGoroutines*numOperations)
+		errs := make(chan error, numGoroutines*numOperations)
 		var wg sync.WaitGroup
 
 		// Run concurrent merge operations
 		for goroutineID := range numGoroutines {
+			goroutineID := goroutineID
 			wg.Go(func() {
 				for j := range numOperations {
 					patch := map[string]any{
@@ -1423,7 +1562,10 @@ func TestConcurrencyAndImmutability(t *testing.T) {
 					}
 
 					result, err := Merge(target, patch)
-					require.NoError(t, err)
+					if err != nil {
+						errs <- err
+						return
+					}
 					results[goroutineID*numOperations+j] = result
 				}
 			})
@@ -1431,24 +1573,33 @@ func TestConcurrencyAndImmutability(t *testing.T) {
 
 		// Wait for all goroutines to complete
 		wg.Wait()
-
+		close(errs)
+		for err := range errs {
+			assert.NoError(t, err)
+		}
 		// Verify original target is unchanged
 		assert.Equal(t, 0, target["counter"])
-		assert.Equal(t, []string{"a", "b", "c"}, target["data"])
+		if diff := cmp.Diff([]string{"a", "b", "c"}, target["data"]); diff != "" {
+			t.Errorf("Merge() preserved data mismatch (-want +got):\n%s", diff)
+		}
 
 		// Verify all operations completed successfully
 		for i, result := range results {
 			require.NotNil(t, result, "Result %d should not be nil", i)
 			assert.Contains(t, result.Doc, "counter")
 			assert.Contains(t, result.Doc, "id")
-			assert.Equal(t, []string{"a", "b", "c"}, result.Doc["data"])
+			if diff := cmp.Diff([]string{"a", "b", "c"}, result.Doc["data"]); diff != "" {
+				t.Errorf("Merge() preserved data mismatch (-want +got):\n%s", diff)
+			}
 		}
 	})
 }
 
 // TestArrayOperations tests common array handling scenarios
 func TestArrayOperations(t *testing.T) {
+	t.Parallel()
 	t.Run("shopping_cart_updates", func(t *testing.T) {
+		t.Parallel()
 		scenarios := []struct {
 			name     string
 			cart     string
@@ -1483,6 +1634,7 @@ func TestArrayOperations(t *testing.T) {
 
 		for _, scenario := range scenarios {
 			t.Run(scenario.name, func(t *testing.T) {
+				t.Parallel()
 				result, err := Merge(scenario.cart, scenario.update)
 				require.NoError(t, err)
 				assert.JSONEq(t, scenario.expected, result.Doc)
@@ -1491,6 +1643,7 @@ func TestArrayOperations(t *testing.T) {
 	})
 
 	t.Run("score_matrix", func(t *testing.T) {
+		t.Parallel()
 		original := `{"scores": [[85, 90], [78, 82], [92, 88]]}`
 		update := `{"scores": [[95, 96]]}`
 		expected := `{"scores": [[95, 96]]}`
@@ -1501,6 +1654,7 @@ func TestArrayOperations(t *testing.T) {
 	})
 
 	t.Run("student_list", func(t *testing.T) {
+		t.Parallel()
 		original := `{"students": [{"id": 1, "name": "Alice", "grade": "3rd"}, {"id": 2, "name": "Bob", "grade": "4th"}]}`
 		update := `{"students": [{"id": 3, "name": "Charlie", "grade": "5th"}]}`
 		expected := `{"students": [{"id": 3, "name": "Charlie", "grade": "5th"}]}`
@@ -1513,7 +1667,9 @@ func TestArrayOperations(t *testing.T) {
 
 // TestSpecialCharacters tests handling of common special characters and text
 func TestSpecialCharacters(t *testing.T) {
+	t.Parallel()
 	t.Run("user_profiles", func(t *testing.T) {
+		t.Parallel()
 		testCases := []struct {
 			name     string
 			profile  string
@@ -1548,6 +1704,7 @@ func TestSpecialCharacters(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 				result, err := Merge(tc.profile, tc.update)
 				require.NoError(t, err)
 				assert.JSONEq(t, tc.expected, result.Doc)
@@ -1556,6 +1713,7 @@ func TestSpecialCharacters(t *testing.T) {
 	})
 
 	t.Run("text_formatting", func(t *testing.T) {
+		t.Parallel()
 		original := `{"title": "", "content": " ", "code": "\t", "poem": "\nline1\nline2"}`
 		update := `{"title": "My Article", "emoji": "😊", "quote": "\"Hello World\"", "math": "x² + y² = z²"}`
 		expected := `{"title": "My Article", "content": " ", "code": "\t", "poem": "\nline1\nline2", "emoji": "😊", "quote": "\"Hello World\"", "math": "x² + y² = z²"}`
@@ -1568,7 +1726,9 @@ func TestSpecialCharacters(t *testing.T) {
 
 // TestNestedStructures tests handling of nested document structures
 func TestNestedStructures(t *testing.T) {
+	t.Parallel()
 	t.Run("game_levels", func(t *testing.T) {
+		t.Parallel()
 		// Build a game with 20 nested levels
 		levels := 20
 		game := make(map[string]any)
@@ -1609,7 +1769,9 @@ func TestNestedStructures(t *testing.T) {
 
 // TestLargeDatasets tests performance with large amounts of data
 func TestLargeDatasets(t *testing.T) {
+	t.Parallel()
 	t.Run("game_player_settings", func(t *testing.T) {
+		t.Parallel()
 		const count = 500
 		settings := make(map[string]any)
 		patch := make(map[string]any)
@@ -1633,6 +1795,7 @@ func TestLargeDatasets(t *testing.T) {
 	})
 
 	t.Run("product_catalog_replacement", func(t *testing.T) {
+		t.Parallel()
 		const count = 5000
 		products := make([]any, count)
 		for i := range count {
@@ -1645,13 +1808,17 @@ func TestLargeDatasets(t *testing.T) {
 
 		result, err := Merge(target, patch)
 		require.NoError(t, err)
-		assert.Equal(t, featured, result.Doc["products"])
+		if diff := cmp.Diff(featured, result.Doc["products"]); diff != "" {
+			t.Errorf("Merge() products mismatch (-want +got):\n%s", diff)
+		}
 	})
 }
 
 // TestBoundaryConditions tests various extreme and boundary conditions
 func TestBoundaryConditions(t *testing.T) {
+	t.Parallel()
 	t.Run("empty_document_cases", func(t *testing.T) {
+		t.Parallel()
 		scenarios := []struct {
 			name     string
 			input    any
@@ -1680,6 +1847,7 @@ func TestBoundaryConditions(t *testing.T) {
 
 		for _, scenario := range scenarios {
 			t.Run(scenario.name, func(t *testing.T) {
+				t.Parallel()
 				result, err := Merge(scenario.input, scenario.patch)
 				require.NoError(t, err)
 
@@ -1691,6 +1859,7 @@ func TestBoundaryConditions(t *testing.T) {
 	})
 
 	t.Run("number_precision", func(t *testing.T) {
+		t.Parallel()
 		base := `{"maxFloat": 1.7976931348623157e+308, "maxInt": 9223372036854775807, "minInt": -9223372036854775808}`
 		changes := `{"maxFloat": 2.2250738585072014e-308, "maxInt": -9223372036854775808, "precision": 0.123456789}`
 		expected := `{"maxFloat": 2.2250738585072014e-308, "maxInt": -9223372036854775808, "minInt": -9223372036854775808, "precision": 0.123456789}`
@@ -1701,6 +1870,7 @@ func TestBoundaryConditions(t *testing.T) {
 	})
 
 	t.Run("boolean_and_null_values", func(t *testing.T) {
+		t.Parallel()
 		base := `{"enabled": true, "disabled": false, "missing": null}`
 		changes := `{"enabled": false, "missing": "present", "disabled": null, "added": true}`
 		expected := `{"enabled": false, "missing": "present", "added": true}`
@@ -1713,7 +1883,9 @@ func TestBoundaryConditions(t *testing.T) {
 
 // TestJSONCompatibility tests compatibility across different JSON processing scenarios
 func TestJSONCompatibility(t *testing.T) {
+	t.Parallel()
 	t.Run("json_roundtrip", func(t *testing.T) {
+		t.Parallel()
 		target := map[string]any{
 			"score":    85.5,
 			"player":   "alex",
@@ -1746,6 +1918,7 @@ func TestJSONCompatibility(t *testing.T) {
 	})
 
 	t.Run("data_type_handling", func(t *testing.T) {
+		t.Parallel()
 		// Verify different JSON data types are handled correctly
 		testCases := []struct {
 			name     string
@@ -1775,6 +1948,7 @@ func TestJSONCompatibility(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 				result, err := Merge(tc.base, tc.update)
 				require.NoError(t, err)
 				assert.JSONEq(t, tc.expected, result.Doc)
@@ -1783,6 +1957,7 @@ func TestJSONCompatibility(t *testing.T) {
 	})
 
 	t.Run("special_key_formats", func(t *testing.T) {
+		t.Parallel()
 		// Test keys with special characters (like JSON Pointer syntax)
 		base := `{"/api/v2/users": "endpoint", "~setting": "value"}`
 		update := `{"/api/v2/users": "updated", "/cache/ttl": "3600"}`
@@ -1794,6 +1969,7 @@ func TestJSONCompatibility(t *testing.T) {
 	})
 
 	t.Run("formatting_independence", func(t *testing.T) {
+		t.Parallel()
 		// Verify JSON formatting variations don't impact merge behavior
 		compactDoc := `{"version":1,"mode":"production"}`
 		formattedDoc := `{
@@ -1815,7 +1991,9 @@ func TestJSONCompatibility(t *testing.T) {
 
 // TestPerformanceAndStressConditions tests library behavior under demanding scenarios
 func TestPerformanceAndStressConditions(t *testing.T) {
+	t.Parallel()
 	t.Run("hierarchical_structure_efficiency", func(t *testing.T) {
+		t.Parallel()
 		const depth = 90
 
 		// Build hierarchical structure
@@ -1856,6 +2034,7 @@ func TestPerformanceAndStressConditions(t *testing.T) {
 	})
 
 	t.Run("extensive_property_handling", func(t *testing.T) {
+		t.Parallel()
 		const count = 4000
 
 		target := make(map[string]any)
@@ -1880,6 +2059,7 @@ func TestPerformanceAndStressConditions(t *testing.T) {
 	})
 
 	t.Run("sequential_operations_stability", func(t *testing.T) {
+		t.Parallel()
 		state := map[string]any{"sequence": 0, "metadata": "persistent"}
 
 		const iterations = 800
