@@ -12,6 +12,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	errTestMarshal   = Error("test marshal failed")
+	errTestUnmarshal = Error("test unmarshal failed")
+)
+
+type flakyDocument struct {
+	value       string
+	failMarshal bool
+}
+
+func (d flakyDocument) MarshalJSON() ([]byte, error) {
+	if d.failMarshal {
+		return nil, errTestMarshal
+	}
+
+	return json.Marshal(d.value)
+}
+
+func (*flakyDocument) UnmarshalJSON([]byte) error {
+	return errTestUnmarshal
+}
+
 // TestRFC7386Compliance tests all examples from RFC 7386 Appendix A
 // Reference: https://datatracker.ietf.org/doc/html/rfc7386#appendix-A
 func TestRFC7386Compliance(t *testing.T) {
@@ -530,9 +552,32 @@ func TestMutateOption(t *testing.T) {
 		result, err := Merge(original, patch)
 		require.NoError(t, err)
 
-		// Original should remain unchanged
 		assert.Equal(t, "John", original["name"])
 		assert.Equal(t, "Jane", result.Doc["name"])
+	})
+
+	t.Run("immutable_by_default_preserves_nested_maps", func(t *testing.T) {
+		original := map[string]any{
+			"profile": map[string]any{
+				"active": true,
+				"settings": map[string]any{
+					"theme": "dark",
+				},
+			},
+		}
+		patch := map[string]any{
+			"profile": map[string]any{
+				"settings": map[string]any{
+					"theme": "light",
+				},
+			},
+		}
+
+		result, err := Merge(original, patch)
+		require.NoError(t, err)
+
+		assert.Equal(t, "dark", original["profile"].(map[string]any)["settings"].(map[string]any)["theme"])
+		assert.Equal(t, "light", result.Doc["profile"].(map[string]any)["settings"].(map[string]any)["theme"])
 	})
 
 	t.Run("mutate_option", func(t *testing.T) {
@@ -620,10 +665,34 @@ func TestErrorCases(t *testing.T) {
 		invalidBytes := []byte(`{"name": invalid}`)
 		patch := []byte(`{"name": "Jane"}`)
 
-		// Invalid JSON bytes should still cause an error
 		_, err := Merge(invalidBytes, patch)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "unmarshal")
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrUnmarshal)
+	})
+
+	t.Run("merge_wraps_target_conversion_errors", func(t *testing.T) {
+		patch := flakyDocument{value: "next"}
+
+		_, err := Merge(flakyDocument{failMarshal: true}, patch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrMarshal)
+	})
+
+	t.Run("merge_wraps_patch_conversion_errors", func(t *testing.T) {
+		target := flakyDocument{value: "current"}
+
+		_, err := Merge(target, flakyDocument{failMarshal: true})
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrMarshal)
+	})
+
+	t.Run("merge_wraps_result_conversion_errors", func(t *testing.T) {
+		target := flakyDocument{value: "current"}
+		patch := flakyDocument{value: "next"}
+
+		_, err := Merge(target, patch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrUnmarshal)
 	})
 
 	t.Run("extremely_malformed_json", func(t *testing.T) {
@@ -747,6 +816,95 @@ func TestGenerate(t *testing.T) {
 		patch, err := Generate(original, updated)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]any{}, patch)
+	})
+
+	t.Run("generate_replaces_scalar_source_with_object_target", func(t *testing.T) {
+		patch, err := Generate[any]("draft", map[string]any{"status": "published"})
+		require.NoError(t, err)
+		assert.Equal(t, map[string]any{"status": "published"}, patch)
+	})
+
+	t.Run("generate_replaces_object_source_with_scalar_target", func(t *testing.T) {
+		patch, err := Generate[any](map[string]any{"status": "draft"}, "published")
+		require.NoError(t, err)
+		assert.Equal(t, "published", patch)
+	})
+
+	t.Run("generate_wraps_source_conversion_errors", func(t *testing.T) {
+		_, err := Generate(flakyDocument{failMarshal: true}, flakyDocument{value: "next"})
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrMarshal)
+	})
+
+	t.Run("generate_wraps_target_conversion_errors", func(t *testing.T) {
+		_, err := Generate(flakyDocument{value: "current"}, flakyDocument{failMarshal: true})
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrMarshal)
+	})
+
+	t.Run("generate_wraps_patch_conversion_errors", func(t *testing.T) {
+		_, err := Generate(flakyDocument{value: "current"}, flakyDocument{value: "next"})
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrUnmarshal)
+	})
+}
+
+func TestMapResultConversionGuard(t *testing.T) {
+	result, err := Merge[map[string]any](map[string]any{"name": "John"}, map[string]any{"name": nil})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{}, result.Doc)
+}
+
+func TestConvertFromInterfaceMapGuard(t *testing.T) {
+	_, err := convertFromInterface[map[string]any]("replaced")
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrConversion)
+}
+
+func TestGenerateNilPatchForNestedEqualObjects(t *testing.T) {
+	patch := generatePatch(
+		map[string]any{"profile": map[string]any{"name": "John"}},
+		map[string]any{"profile": map[string]any{"name": "John"}},
+		false,
+	)
+
+	assert.Nil(t, patch)
+}
+
+func TestDeepEqualCoverage(t *testing.T) {
+	t.Run("nil_handling", func(t *testing.T) {
+		assert.True(t, deepEqual(nil, nil))
+		assert.False(t, deepEqual(nil, 1))
+	})
+
+	t.Run("numeric_type_mismatch", func(t *testing.T) {
+		assert.False(t, deepEqual(float64(1), 1))
+		assert.False(t, deepEqual(int64(1), 1))
+	})
+
+	t.Run("reflect_fallback_for_typed_arrays", func(t *testing.T) {
+		assert.True(t, deepEqual([2]int{1, 2}, [2]int{1, 2}))
+		assert.False(t, deepEqual([2]int{1, 2}, [2]int{2, 1}))
+	})
+}
+
+func TestStringAndBytesConversionErrors(t *testing.T) {
+	t.Run("convert_from_interface_string_wraps_marshal_errors", func(t *testing.T) {
+		_, err := convertFromInterface[string](string([]byte{0xff}))
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrMarshal)
+	})
+
+	t.Run("convert_from_interface_bytes_wraps_marshal_errors", func(t *testing.T) {
+		_, err := convertFromInterface[[]byte](string([]byte{0xff}))
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrMarshal)
+	})
+
+	t.Run("convert_from_interface_wraps_unmarshal_errors_for_typed_documents", func(t *testing.T) {
+		_, err := convertFromInterface[flakyDocument]("next")
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrUnmarshal)
 	})
 }
 
