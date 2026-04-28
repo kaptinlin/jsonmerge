@@ -103,10 +103,6 @@ func Valid[T Document](patch T) bool {
 }
 
 // applyPatch applies the RFC 7386 Section 2 merge patch algorithm.
-//
-// Implementation: if patch is not an object, return patch (complete replacement);
-// if target is not an object, create empty object; then recursively merge fields,
-// deleting on null.
 func applyPatch(target, patch any) any {
 	patchObj, isPatchObject := patch.(map[string]any)
 	if !isPatchObject {
@@ -196,11 +192,8 @@ func generatePatch(source, target any, preserveEmptyObject bool) any {
 // deepEqual compares two values for deep equality using type assertions
 // for common JSON types, with a reflect.DeepEqual fallback for other types.
 func deepEqual(a, b any) bool {
-	if a == nil && b == nil {
-		return true
-	}
 	if a == nil || b == nil {
-		return false
+		return a == nil && b == nil
 	}
 
 	switch va := a.(type) {
