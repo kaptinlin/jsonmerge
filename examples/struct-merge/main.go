@@ -19,21 +19,17 @@ type User struct {
 func main() {
 	fmt.Println("=== Struct Merge Example ===")
 
-	// Original user
 	user := User{
 		Name:  "John Doe",
 		Email: "john@example.com",
 		Age:   30,
 	}
 
-	// Create patch - only specify fields to change
 	patch := User{
-		Name: "Jane Doe", // Update name
-		Age:  25,         // Update age
-		// Email remains unchanged
+		Name: "Jane Doe",
+		Age:  25,
 	}
 
-	// Apply merge patch
 	result, err := jsonmerge.Merge(user, patch)
 	if err != nil {
 		log.Fatal(err)
@@ -43,7 +39,6 @@ func main() {
 	fmt.Println("Patch:   ", prettyJSON(patch))
 	fmt.Println("Result:  ", prettyJSON(result.Doc))
 
-	// Type safety - result.Doc is automatically User type
 	fmt.Printf("\nType-safe access: %s is %d years old\n",
 		result.Doc.Name, result.Doc.Age)
 }

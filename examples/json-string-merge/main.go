@@ -31,7 +31,6 @@ func main() {
 		"email": "john@example.com"
 	}`
 
-	// Apply merge
 	result, err := jsonmerge.Merge(original, patch)
 	if err != nil {
 		log.Fatal(err)
@@ -44,7 +43,6 @@ func main() {
 	fmt.Println("\nResult:")
 	fmt.Println(result.Doc)
 
-	// Demonstrate validation
 	fmt.Println("\n=== Validation ===")
 	validPatch := `{"name": "Updated"}`
 	invalidPatch := `{"name": invalid}`

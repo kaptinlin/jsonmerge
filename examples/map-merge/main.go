@@ -13,7 +13,6 @@ import (
 func main() {
 	fmt.Println("=== Map Merge Example ===")
 
-	// Original document
 	original := map[string]any{
 		"name": "John Doe",
 		"age":  30,
@@ -24,19 +23,17 @@ func main() {
 		"hobbies": []string{"reading", "swimming"},
 	}
 
-	// RFC 7386 merge patch
 	patch := map[string]any{
-		"age": 31, // Update age
+		"age": 31,
 		"address": map[string]any{
-			"city":    "Boston",      // Update city
-			"street":  "123 Main St", // Add street
-			"country": nil,           // Delete country (null value)
+			"city":    "Boston",
+			"street":  "123 Main St",
+			"country": nil,
 		},
-		"hobbies": []string{"hiking", "coding"}, // Replace entire array
-		"email":   "john@example.com",           // Add new field
+		"hobbies": []string{"hiking", "coding"},
+		"email":   "john@example.com",
 	}
 
-	// Apply merge
 	result, err := jsonmerge.Merge(original, patch)
 	if err != nil {
 		log.Fatal(err)

@@ -117,9 +117,10 @@ func applyPatch(target, patch any) any {
 	for name, value := range patchObj {
 		if value == nil {
 			delete(targetObj, name)
-		} else {
-			targetObj[name] = applyPatch(targetObj[name], value)
+			continue
 		}
+
+		targetObj[name] = applyPatch(targetObj[name], value)
 	}
 
 	return targetObj

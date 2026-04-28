@@ -35,7 +35,6 @@ func main() {
 		"version": "1.1"
 	}`)
 
-	// Apply merge
 	result, err := jsonmerge.Merge(original, patch)
 	if err != nil {
 		log.Fatal(err)
@@ -48,7 +47,6 @@ func main() {
 	fmt.Println("\nResult:")
 	fmt.Println(string(result.Doc))
 
-	// Generate patch example
 	fmt.Println("\n=== Generate Patch ===")
 	source := []byte(`{"name": "Alice", "age": 25}`)
 	target := []byte(`{"name": "Alice", "age": 26, "city": "Boston"}`)
