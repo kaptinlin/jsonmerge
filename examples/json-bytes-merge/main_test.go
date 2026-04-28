@@ -21,7 +21,13 @@ func TestMain_PrintsMergedJSONBytesAndGeneratedPatch(t *testing.T) {
 	assert.Contains(t, result, `"version":"1.1"`)
 	assert.NotContains(t, result, `"email":"john@example.com"`)
 	assert.Contains(t, output, "=== Generate Patch ===")
-	assert.Contains(t, output, `Generated Patch: {"age":26,"city":"Boston"}`)
+	assert.JSONEq(t, `{"age":26,"city":"Boston"}`, generatedPatch(output))
+}
+
+func generatedPatch(output string) string {
+	_, patch, _ := strings.Cut(output, "Generated Patch: ")
+	patch, _, _ = strings.Cut(patch, "\n")
+	return patch
 }
 
 func resultSection(output string) string {
