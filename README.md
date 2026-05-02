@@ -130,7 +130,6 @@ task bench
 ```bash
 task test          # Run all tests with race detection
 task lint          # Run golangci-lint and tidy checks
-task markdownlint  # Lint Markdown files
 task verify        # Run deps, fmt, vet, lint, test, and vuln
 ```
 

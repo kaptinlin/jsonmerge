@@ -12,7 +12,6 @@ task test-verbose    # Run tests with verbose output
 task test-coverage   # Generate coverage.out and coverage.html
 task bench           # Run benchmarks
 task lint            # Run golangci-lint and go.mod/go.sum tidy checks
-task markdownlint    # Lint Markdown files
 task yamllint        # Lint YAML files
 task vuln            # Run govulncheck
 task fmt             # Format Go code
@@ -105,7 +104,6 @@ Specification documents in [`SPECS/`](SPECS/) — package contracts, data-form r
 - Keep coverage for RFC 7386 Appendix A behavior, mutation rules, conversion failures, raw-string versus invalid-byte handling, concurrency, and benchmarks.
 - Keep runnable examples in `example_test.go` aligned with `README.md`.
 - Run `task test` and `task lint` for code changes.
-- Run `task markdownlint` for Markdown changes.
 - Run `task yamllint` for YAML changes such as `lefthook.yml`.
 
 ## Dependencies

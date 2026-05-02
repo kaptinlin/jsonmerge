@@ -46,26 +46,26 @@ Benchmark before keeping a performance change.
 ## Test and Lint Requirements
 
 For code changes, run `task test` and `task lint`.
-For markdown changes, run `task markdownlint` and keep `SPECS/**` included.
+For markdown changes, keep `README.md`, `CLAUDE.md`, and `SPECS/**` aligned.
 For YAML changes such as `lefthook.yml`, run `task yamllint`.
 Tests must keep coverage for RFC Appendix A behavior, mutation rules, conversion failures, raw-string handling, and benchmarks.
 
 > **Why**: This package's main failure modes are semantic drift and unchecked tooling gaps.
 >
-> **Rejected**: Spec-file layout tests and lint exclusions that silently remove the canonical docs from review.
+> **Rejected**: Spec-file layout tests and stale docs that silently drift from the canonical contracts.
 
 ## Forbidden
 
 - Do not add helper abstractions that obscure RFC semantics in hot code.
 - Do not define unused sentinel errors.
-- Do not exclude `SPECS/**` from markdownlint.
+- Do not let `SPECS/**` drift from package behavior.
 - Do not add `_test.go` files that only police `SPECS/` layout or `CLAUDE.md` links.
 - Do not keep stale rules when the code has intentionally moved on; rewrite the spec to match the better current contract.
 
 ## Acceptance Criteria
 
 - Code and docs describe the same behavior.
-- Pre-commit and task-based linting cover code, YAML, and `SPECS/**`.
+- Pre-commit and task-based linting cover code and YAML.
 - Contributors know which behavioral changes require new tests and benchmarks.
 
 **Origin:** This file preserves the git history of the original `CLAUDE.md`; the rest of the `SPECS/` set was split from the same source.
