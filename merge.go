@@ -170,14 +170,13 @@ func generatePatch(source, target any, preserveEmptyObject bool) any {
 		}
 	}
 
-	if patch == nil {
-		if preserveEmptyObject {
-			return map[string]any{}
-		}
-		return nil
+	if patch != nil {
+		return patch
 	}
-
-	return patch
+	if preserveEmptyObject {
+		return map[string]any{}
+	}
+	return nil
 }
 
 func deepEqual(a, b any) bool {
@@ -213,9 +212,7 @@ func deepEqual(a, b any) bool {
 }
 
 func convertToInterface[T Document](doc T) (any, error) {
-	var v any = doc
-
-	switch typed := v.(type) {
+	switch typed := any(doc).(type) {
 	case []byte:
 		var result any
 		if err := json.Unmarshal(typed, &result); err != nil {
