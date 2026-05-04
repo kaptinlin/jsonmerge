@@ -53,12 +53,10 @@ func Merge[T Document](target, patch T, opts ...Option) (*Result[T], error) {
 		return nil, fmt.Errorf("convert patch: %w", err)
 	}
 
-	if !options.Mutate {
-		if _, isPatchObject := patchInterface.(map[string]any); isPatchObject {
-			if targetMap, ok := any(target).(map[string]any); ok && targetMap != nil {
-				targetInterface = deepclone.Clone(targetInterface)
-			}
-		}
+	_, patchIsObject := patchInterface.(map[string]any)
+	targetMap, targetIsMap := any(target).(map[string]any)
+	if !options.Mutate && patchIsObject && targetIsMap && targetMap != nil {
+		targetInterface = deepclone.Clone(targetInterface)
 	}
 
 	merged := applyPatch(targetInterface, patchInterface)
@@ -102,7 +100,6 @@ func Valid[T Document](patch T) bool {
 	return err == nil
 }
 
-// applyPatch applies the RFC 7386 Section 2 merge patch algorithm.
 func applyPatch(target, patch any) any {
 	patchObj, isPatchObject := patch.(map[string]any)
 	if !isPatchObject {
@@ -126,7 +123,6 @@ func applyPatch(target, patch any) any {
 	return targetObj
 }
 
-// generatePatch creates a patch that transforms source into target.
 func generatePatch(source, target any, preserveEmptyObject bool) any {
 	targetObj, isTargetObject := target.(map[string]any)
 	if !isTargetObject {
@@ -224,7 +220,6 @@ func deepEqual(a, b any) bool {
 	}
 }
 
-// convertToInterface converts various document types to a common representation for processing.
 func convertToInterface[T Document](doc T) (any, error) {
 	var v any = doc
 
@@ -263,7 +258,6 @@ func convertToInterface[T Document](doc T) (any, error) {
 	}
 }
 
-// convertFromInterface converts a common representation back to the original document type.
 func convertFromInterface[T Document](val any) (T, error) {
 	var zero T
 
