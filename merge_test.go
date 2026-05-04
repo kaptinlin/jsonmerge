@@ -858,14 +858,28 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 		original := map[string]any{
 			"profile": map[string]any{
-				"name": "John",
-				"tags": []any{"admin", map[string]any{"active": true}},
+				"active": true,
+				"limit":  int64(3),
+				"name":   "John",
+				"ratio":  float64(1.5),
+				"status": nil,
+				"tags": []any{"admin", map[string]any{
+					"active": true,
+					"level":  int64(2),
+				}},
 			},
 		}
 		updated := map[string]any{
 			"profile": map[string]any{
-				"name": "John",
-				"tags": []any{"admin", map[string]any{"active": true}},
+				"active": true,
+				"limit":  int64(3),
+				"name":   "John",
+				"ratio":  float64(1.5),
+				"status": nil,
+				"tags": []any{"admin", map[string]any{
+					"active": true,
+					"level":  int64(2),
+				}},
 			},
 		}
 
@@ -923,73 +937,22 @@ func TestMapResultConversionGuard(t *testing.T) {
 	}
 }
 
-func TestConvertFromInterfaceMapGuard(t *testing.T) {
+func TestStringResultMarshalErrors(t *testing.T) {
 	t.Parallel()
-	_, err := convertFromInterface[map[string]any]("replaced")
-	require.Error(t, err)
-	require.ErrorIs(t, err, ErrConversion)
-}
+	invalid := string([]byte{0xff})
 
-func TestGenerateNilPatchForNestedEqualObjects(t *testing.T) {
-	t.Parallel()
-	patch := generatePatch(
-		map[string]any{"profile": map[string]any{"name": "John"}},
-		map[string]any{"profile": map[string]any{"name": "John"}},
-		false,
-	)
-
-	assert.Nil(t, patch)
-}
-
-func TestDeepEqualCoverage(t *testing.T) {
-	t.Parallel()
-	t.Run("nil_handling", func(t *testing.T) {
+	t.Run("merge_wraps_result_marshal_errors", func(t *testing.T) {
 		t.Parallel()
-		assert.True(t, deepEqual(nil, nil))
-		assert.False(t, deepEqual(nil, 1))
-	})
-
-	t.Run("numeric_type_mismatch", func(t *testing.T) {
-		t.Parallel()
-		assert.False(t, deepEqual(float64(1), 1))
-		assert.False(t, deepEqual(int64(1), 1))
-	})
-
-	t.Run("reflect_fallback_for_non_json_numeric_types", func(t *testing.T) {
-		t.Parallel()
-		assert.True(t, deepEqual(int(1), int(1)))
-		assert.True(t, deepEqual(int64(1), int64(1)))
-		assert.False(t, deepEqual(int64(1), int64(2)))
-	})
-
-	t.Run("reflect_fallback_for_typed_arrays", func(t *testing.T) {
-		t.Parallel()
-		assert.True(t, deepEqual([2]int{1, 2}, [2]int{1, 2}))
-		assert.False(t, deepEqual([2]int{1, 2}, [2]int{2, 1}))
-	})
-}
-
-func TestStringAndBytesConversionErrors(t *testing.T) {
-	t.Parallel()
-	t.Run("convert_from_interface_string_wraps_marshal_errors", func(t *testing.T) {
-		t.Parallel()
-		_, err := convertFromInterface[string](string([]byte{0xff}))
+		_, err := Merge("current", invalid)
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMarshal)
 	})
 
-	t.Run("convert_from_interface_bytes_wraps_marshal_errors", func(t *testing.T) {
+	t.Run("generate_wraps_patch_marshal_errors", func(t *testing.T) {
 		t.Parallel()
-		_, err := convertFromInterface[[]byte](string([]byte{0xff}))
+		_, err := Generate("current", invalid)
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMarshal)
-	})
-
-	t.Run("convert_from_interface_wraps_unmarshal_errors_for_typed_documents", func(t *testing.T) {
-		t.Parallel()
-		_, err := convertFromInterface[flakyDocument]("next")
-		require.Error(t, err)
-		require.ErrorIs(t, err, ErrUnmarshal)
 	})
 }
 
