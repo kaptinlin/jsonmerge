@@ -9,7 +9,6 @@ import (
 	"github.com/kaptinlin/jsonmerge"
 )
 
-// User represents a simple user profile
 type User struct {
 	Name  string `json:"name"`
 	Email string `json:"email,omitempty"`

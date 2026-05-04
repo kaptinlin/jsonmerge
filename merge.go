@@ -135,14 +135,17 @@ func generatePatch(source, target any, preserveEmptyObject bool) any {
 	}
 
 	var patch map[string]any
+	setPatch := func(key string, value any) {
+		if patch == nil {
+			patch = make(map[string]any)
+		}
+		patch[key] = value
+	}
 
 	for key, targetValue := range targetObj {
 		sourceValue, exists := sourceObj[key]
 		if !exists {
-			if patch == nil {
-				patch = make(map[string]any)
-			}
-			patch[key] = targetValue
+			setPatch(key, targetValue)
 			continue
 		}
 
@@ -151,28 +154,19 @@ func generatePatch(source, target any, preserveEmptyObject bool) any {
 		if isSourceObj && isTargetObj {
 			nestedPatch := generatePatch(sourceValueObj, targetValueObj, false)
 			if nestedPatch != nil {
-				if patch == nil {
-					patch = make(map[string]any)
-				}
-				patch[key] = nestedPatch
+				setPatch(key, nestedPatch)
 			}
 			continue
 		}
 
 		if !deepEqual(sourceValue, targetValue) {
-			if patch == nil {
-				patch = make(map[string]any)
-			}
-			patch[key] = targetValue
+			setPatch(key, targetValue)
 		}
 	}
 
 	for key := range sourceObj {
 		if _, exists := targetObj[key]; !exists {
-			if patch == nil {
-				patch = make(map[string]any)
-			}
-			patch[key] = nil
+			setPatch(key, nil)
 		}
 	}
 
@@ -186,8 +180,6 @@ func generatePatch(source, target any, preserveEmptyObject bool) any {
 	return patch
 }
 
-// deepEqual compares two values for deep equality using type assertions
-// for common JSON types, with a reflect.DeepEqual fallback for other types.
 func deepEqual(a, b any) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil

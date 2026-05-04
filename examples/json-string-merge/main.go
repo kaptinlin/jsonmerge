@@ -10,7 +10,6 @@ import (
 func main() {
 	fmt.Println("=== JSON String Merge Example ===")
 
-	// JSON strings
 	original := `{
 		"name": "John Doe",
 		"age": 30,

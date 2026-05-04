@@ -10,7 +10,6 @@ import (
 func main() {
 	fmt.Println("=== JSON Bytes Merge Example ===")
 
-	// JSON data as byte arrays (common in HTTP requests, file I/O)
 	original := []byte(`{
 		"user": {
 			"name": "John Doe",

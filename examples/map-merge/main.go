@@ -43,7 +43,6 @@ func main() {
 	fmt.Println("Patch:   ", prettyJSON(patch))
 	fmt.Println("Result:  ", prettyJSON(result.Doc))
 
-	// Demonstrate key RFC 7386 behaviors
 	fmt.Println("\n=== Key Behaviors ===")
 	fmt.Println("• Objects are merged recursively")
 	fmt.Println("• null values delete fields")
