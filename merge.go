@@ -108,7 +108,7 @@ func applyPatch(target, patch any) any {
 
 	targetObj, isTargetObject := target.(map[string]any)
 	if !isTargetObject || targetObj == nil {
-		targetObj = make(map[string]any)
+		targetObj = make(map[string]any, len(patchObj))
 	}
 
 	for name, value := range patchObj {
@@ -137,7 +137,7 @@ func generatePatch(source, target any, preserveEmptyObject bool) any {
 	var patch map[string]any
 	setPatch := func(key string, value any) {
 		if patch == nil {
-			patch = make(map[string]any)
+			patch = make(map[string]any, len(targetObj))
 		}
 		patch[key] = value
 	}

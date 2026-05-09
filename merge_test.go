@@ -671,6 +671,20 @@ func TestErrorCases(t *testing.T) {
 		}
 	})
 
+	t.Run("object_patch_replaces_scalar_target", func(t *testing.T) {
+		t.Parallel()
+		patch := map[string]any{
+			"active": true,
+			"name":   "Jane",
+		}
+
+		result, err := Merge[any]("draft", patch)
+		require.NoError(t, err)
+		if diff := cmp.Diff(patch, result.Doc); diff != "" {
+			t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
+		}
+	})
+
 	t.Run("invalid_json_target", func(t *testing.T) {
 		t.Parallel()
 		invalidJSON := `{"name": invalid}`
