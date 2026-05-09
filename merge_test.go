@@ -875,6 +875,7 @@ func TestGenerate(t *testing.T) {
 				"active": true,
 				"limit":  int64(3),
 				"name":   "John",
+				"quota":  uint(7),
 				"ratio":  float64(1.5),
 				"status": nil,
 				"tags": []any{"admin", map[string]any{
@@ -888,6 +889,7 @@ func TestGenerate(t *testing.T) {
 				"active": true,
 				"limit":  int64(3),
 				"name":   "John",
+				"quota":  uint(7),
 				"ratio":  float64(1.5),
 				"status": nil,
 				"tags": []any{"admin", map[string]any{

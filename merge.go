@@ -250,33 +250,25 @@ func convertToInterface[T Document](doc T) (any, error) {
 func convertFromInterface[T Document](val any) (T, error) {
 	var zero T
 
+	if _, ok := any(zero).(map[string]any); ok {
+		m, ok := val.(map[string]any)
+		if !ok {
+			return zero, fmt.Errorf("%w: expected map[string]any, got %T", ErrConversion, val)
+		}
+		return any(m).(T), nil
+	}
+
+	data, err := json.Marshal(val)
+	if err != nil {
+		return zero, fmt.Errorf("%w: %w", ErrMarshal, err)
+	}
+
 	switch any(zero).(type) {
 	case []byte:
-		data, err := json.Marshal(val)
-		if err != nil {
-			return zero, fmt.Errorf("%w: %w", ErrMarshal, err)
-		}
 		return any(data).(T), nil
-
 	case string:
-		data, err := json.Marshal(val)
-		if err != nil {
-			return zero, fmt.Errorf("%w: %w", ErrMarshal, err)
-		}
 		return any(string(data)).(T), nil
-
-	case map[string]any:
-		if m, ok := val.(map[string]any); ok {
-			return any(m).(T), nil
-		}
-		return zero, fmt.Errorf("%w: expected map[string]any, got %T", ErrConversion, val)
-
 	default:
-		data, err := json.Marshal(val)
-		if err != nil {
-			return zero, fmt.Errorf("%w: %w", ErrMarshal, err)
-		}
-
 		var target T
 		if err := json.Unmarshal(data, &target); err != nil {
 			return zero, fmt.Errorf("%w: %w", ErrUnmarshal, err)

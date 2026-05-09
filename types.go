@@ -7,13 +7,11 @@ type Document interface {
 
 // Result holds a merged document.
 type Result[T Document] struct {
-	// Doc is the merged document.
 	Doc T
 }
 
 // Options configures merge behavior.
 type Options struct {
-	// Mutate allows in-place updates.
 	Mutate bool
 }
 
