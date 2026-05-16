@@ -936,6 +936,35 @@ func TestGenerate(t *testing.T) {
 		require.ErrorIs(t, err, ErrMarshal)
 	})
 
+	t.Run("generate_rejects_invalid_json_bytes", func(t *testing.T) {
+		t.Parallel()
+		testCases := []struct {
+			name   string
+			source []byte
+			target []byte
+		}{
+			{
+				name:   "source",
+				source: []byte(`{"name": invalid}`),
+				target: []byte(`{"name": "Jane"}`),
+			},
+			{
+				name:   "target",
+				source: []byte(`{"name": "John"}`),
+				target: []byte(`{"name": invalid}`),
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				_, err := Generate(tc.source, tc.target)
+				require.Error(t, err)
+				require.ErrorIs(t, err, ErrUnmarshal)
+			})
+		}
+	})
+
 	t.Run("generate_wraps_patch_conversion_errors", func(t *testing.T) {
 		t.Parallel()
 		_, err := Generate(flakyDocument{value: "current"}, flakyDocument{value: "next"})
@@ -997,7 +1026,8 @@ func TestValid(t *testing.T) {
 		// Only JSON bytes with invalid JSON should be invalid
 		// Invalid JSON strings are treated as raw strings (valid)
 		invalidPatches := []any{
-			[]byte(`{"name": invalid}`), // Invalid JSON bytes
+			[]byte(`{"name": invalid}`),
+			flakyDocument{failMarshal: true},
 		}
 
 		for i, patch := range invalidPatches {
