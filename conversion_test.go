@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-json-experiment/json"
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,5 +34,27 @@ func TestGeneratePreservesRawJSONDocumentTypes(t *testing.T) {
 		if diff := cmp.Diff(map[string]any{"name": "Jane"}, got); diff != "" {
 			t.Errorf("Generate() patch mismatch (-want +got):\n%s", diff)
 		}
+	})
+}
+
+type revision int
+
+func TestScalarDocumentsPreserveNamedType(t *testing.T) {
+	t.Parallel()
+
+	t.Run("merge", func(t *testing.T) {
+		t.Parallel()
+
+		result, err := Merge(revision(1), revision(2))
+		require.NoError(t, err)
+		assert.Equal(t, revision(2), result.Doc)
+	})
+
+	t.Run("generate", func(t *testing.T) {
+		t.Parallel()
+
+		patch, err := Generate(revision(1), revision(2))
+		require.NoError(t, err)
+		assert.Equal(t, revision(2), patch)
 	})
 }
