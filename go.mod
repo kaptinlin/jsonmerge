@@ -1,11 +1,11 @@
 module github.com/kaptinlin/jsonmerge
 
-go 1.26.2
+go 1.26.3
 
 require (
-	github.com/go-json-experiment/json v0.0.0-20260505212615-e40f80bf6836
+	github.com/go-json-experiment/json v0.0.0-20260520185125-572e7c383686
 	github.com/google/go-cmp v0.7.0
-	github.com/kaptinlin/deepclone v0.2.13
+	github.com/kaptinlin/deepclone v0.2.16
 )
 
 require (

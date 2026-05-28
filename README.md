@@ -1,6 +1,6 @@
 # JSON Merge Patch for Go
 
-[![Go Version](https://img.shields.io/badge/go-%3E%3D1.26-blue.svg)](https://golang.org/)
+[![Go Module](https://img.shields.io/badge/go-module-blue.svg)](https://golang.org/)
 [![Go Reference](https://pkg.go.dev/badge/github.com/kaptinlin/jsonmerge.svg)](https://pkg.go.dev/github.com/kaptinlin/jsonmerge)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -21,7 +21,7 @@ A type-safe RFC 7386 JSON Merge Patch library for Go that preserves the caller's
 go get github.com/kaptinlin/jsonmerge
 ```
 
-Requires **Go 1.26+**.
+Requires the Go version declared in `go.mod`.
 
 ## Quick Start
 

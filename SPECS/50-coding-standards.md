@@ -2,7 +2,7 @@
 
 ## Language and API Discipline
 
-Target Go 1.26+ and keep the public surface small.
+Target the Go version declared in `go.mod` and keep the public surface small.
 New exported API should only appear when RFC 7386 support or representation-preserving ergonomics clearly require it.
 
 > **Why**: The library wins by being easy to audit and hard to misuse.

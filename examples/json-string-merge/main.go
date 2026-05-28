@@ -1,3 +1,4 @@
+// Package main demonstrates string-based JSON Merge Patch usage.
 package main
 
 import (

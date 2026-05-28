@@ -1,3 +1,4 @@
+// Package main demonstrates struct-based JSON Merge Patch usage.
 package main
 
 import (

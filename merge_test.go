@@ -600,6 +600,32 @@ func TestMutateOption(t *testing.T) {
 		assert.Equal(t, "light", result.Doc["profile"].(map[string]any)["settings"].(map[string]any)["theme"])
 	})
 
+	t.Run("immutable_by_default_does_not_alias_nested_values", func(t *testing.T) {
+		t.Parallel()
+		original := map[string]any{
+			"profile": map[string]any{
+				"settings": map[string]any{
+					"theme": "dark",
+				},
+				"tags": []any{
+					map[string]any{"name": "stable"},
+				},
+			},
+		}
+		patch := map[string]any{"name": "Jane"}
+
+		result, err := Merge(original, patch)
+		require.NoError(t, err)
+
+		resultProfile := result.Doc["profile"].(map[string]any)
+		resultProfile["settings"].(map[string]any)["theme"] = "light"
+		resultProfile["tags"].([]any)[0].(map[string]any)["name"] = "changed"
+
+		originalProfile := original["profile"].(map[string]any)
+		assert.Equal(t, "dark", originalProfile["settings"].(map[string]any)["theme"])
+		assert.Equal(t, "stable", originalProfile["tags"].([]any)[0].(map[string]any)["name"])
+	})
+
 	t.Run("mutate_option", func(t *testing.T) {
 		t.Parallel()
 		original := map[string]any{

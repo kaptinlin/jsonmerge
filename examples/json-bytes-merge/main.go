@@ -1,3 +1,4 @@
+// Package main demonstrates byte-slice JSON Merge Patch usage.
 package main
 
 import (
