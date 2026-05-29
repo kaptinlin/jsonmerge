@@ -626,6 +626,32 @@ func TestMutateOption(t *testing.T) {
 		assert.Equal(t, "stable", originalProfile["tags"].([]any)[0].(map[string]any)["name"])
 	})
 
+	t.Run("immutable_by_default_does_not_alias_patch_replacement_values", func(t *testing.T) {
+		t.Parallel()
+		original := map[string]any{"items": []any{"stable"}}
+		patch := map[string]any{
+			"items": []any{
+				map[string]any{"name": "replacement"},
+			},
+		}
+
+		result, err := Merge(original, patch)
+		require.NoError(t, err)
+
+		resultItems := result.Doc["items"].([]any)
+		resultItems[0].(map[string]any)["name"] = "changed"
+		resultItems[0] = map[string]any{"name": "changed again"}
+
+		expectedPatch := map[string]any{
+			"items": []any{
+				map[string]any{"name": "replacement"},
+			},
+		}
+		if diff := cmp.Diff(expectedPatch, patch); diff != "" {
+			t.Errorf("Merge() patch mutated (-want +got):\n%s", diff)
+		}
+	})
+
 	t.Run("mutate_option", func(t *testing.T) {
 		t.Parallel()
 		original := map[string]any{
