@@ -231,7 +231,15 @@ func convertToInterface[T Document](doc T) (any, error) {
 		}
 		return typed, nil
 
-	case map[string]any, nil,
+	case map[string]any:
+		if typed != nil {
+			if _, err := json.Marshal(typed); err != nil {
+				return nil, fmt.Errorf("%w: %w", ErrMarshal, err)
+			}
+		}
+		return typed, nil
+
+	case nil,
 		bool, int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64,
 		float32, float64:

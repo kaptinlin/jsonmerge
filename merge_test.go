@@ -2,6 +2,7 @@ package jsonmerge
 
 import (
 	"fmt"
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -735,6 +736,27 @@ func TestErrorCases(t *testing.T) {
 		if diff := cmp.Diff(patch, result.Doc); diff != "" {
 			t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
 		}
+	})
+
+	t.Run("rejects_non_json_map_values", func(t *testing.T) {
+		t.Parallel()
+		patch := map[string]any{"limit": math.NaN()}
+
+		require.False(t, Valid(patch))
+		_, err := Merge(map[string]any{}, patch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrMarshal)
+	})
+
+	t.Run("rejects_cyclic_map_patch", func(t *testing.T) {
+		t.Parallel()
+		patch := map[string]any{}
+		patch["self"] = patch
+
+		require.False(t, Valid(patch))
+		_, err := Merge(map[string]any{}, patch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrMarshal)
 	})
 
 	t.Run("invalid_json_target", func(t *testing.T) {
