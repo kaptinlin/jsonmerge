@@ -1,6 +1,7 @@
 package jsonmerge
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -15,8 +16,8 @@ import (
 )
 
 var (
-	errTestMarshal   = Error("test marshal failed")
-	errTestUnmarshal = Error("test unmarshal failed")
+	errTestMarshal   = errors.New("test marshal failed")
+	errTestUnmarshal = errors.New("test unmarshal failed")
 )
 
 type flakyDocument struct {
@@ -801,6 +802,7 @@ func TestErrorCases(t *testing.T) {
 		_, err := Merge(flakyDocument{failMarshal: true}, patch)
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMarshal)
+		require.ErrorIs(t, err, errTestMarshal)
 	})
 
 	t.Run("merge_wraps_patch_conversion_errors", func(t *testing.T) {
@@ -810,6 +812,7 @@ func TestErrorCases(t *testing.T) {
 		_, err := Merge(target, flakyDocument{failMarshal: true})
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMarshal)
+		require.ErrorIs(t, err, errTestMarshal)
 	})
 
 	t.Run("merge_wraps_result_conversion_errors", func(t *testing.T) {
@@ -820,6 +823,7 @@ func TestErrorCases(t *testing.T) {
 		_, err := Merge(target, patch)
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrUnmarshal)
+		require.ErrorIs(t, err, errTestUnmarshal)
 	})
 
 	t.Run("extremely_malformed_json", func(t *testing.T) {
@@ -1001,6 +1005,7 @@ func TestGenerate(t *testing.T) {
 		_, err := Generate(flakyDocument{failMarshal: true}, flakyDocument{value: "next"})
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMarshal)
+		require.ErrorIs(t, err, errTestMarshal)
 	})
 
 	t.Run("generate_wraps_target_conversion_errors", func(t *testing.T) {
@@ -1008,6 +1013,7 @@ func TestGenerate(t *testing.T) {
 		_, err := Generate(flakyDocument{value: "current"}, flakyDocument{failMarshal: true})
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMarshal)
+		require.ErrorIs(t, err, errTestMarshal)
 	})
 
 	t.Run("generate_rejects_invalid_json_bytes", func(t *testing.T) {
@@ -1044,6 +1050,7 @@ func TestGenerate(t *testing.T) {
 		_, err := Generate(flakyDocument{value: "current"}, flakyDocument{value: "next"})
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrUnmarshal)
+		require.ErrorIs(t, err, errTestUnmarshal)
 	})
 }
 

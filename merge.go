@@ -8,6 +8,7 @@
 package jsonmerge
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -17,21 +18,15 @@ import (
 	"github.com/kaptinlin/deepclone"
 )
 
-// Error is a sentinel error string.
-type Error string
-
-// Error returns e as a string.
-func (e Error) Error() string { return string(e) }
-
-const (
+var (
 	// ErrMarshal indicates JSON marshaling failed.
-	ErrMarshal Error = "marshal failed"
+	ErrMarshal = errors.New("marshal failed")
 
 	// ErrUnmarshal indicates JSON unmarshaling failed.
-	ErrUnmarshal Error = "unmarshal failed"
+	ErrUnmarshal = errors.New("unmarshal failed")
 
 	// ErrConversion indicates type conversion between document types failed.
-	ErrConversion Error = "type conversion failed"
+	ErrConversion = errors.New("type conversion failed")
 )
 
 // Merge applies patch to target according to RFC 7386.
@@ -43,29 +38,29 @@ func Merge[T Document](target, patch T, opts ...Option) (*Result[T], error) {
 		opt(&options)
 	}
 
-	targetInterface, err := convertToInterface(target)
+	targetValue, err := toJSONValue(target)
 	if err != nil {
 		return nil, fmt.Errorf("convert target: %w", err)
 	}
 
-	patchInterface, err := convertToInterface(patch)
+	patchValue, err := toJSONValue(patch)
 	if err != nil {
 		return nil, fmt.Errorf("convert patch: %w", err)
 	}
 
-	_, patchIsObject := patchInterface.(map[string]any)
+	_, patchIsObject := patchValue.(map[string]any)
 	if patchMap, patchIsMap := any(patch).(map[string]any); patchIsMap && patchMap != nil {
-		patchInterface = deepclone.Clone(patchInterface)
+		patchValue = deepclone.Clone(patchValue)
 	}
 
 	targetMap, targetIsMap := any(target).(map[string]any)
 	if !options.Mutate && patchIsObject && targetIsMap && targetMap != nil {
-		targetInterface = deepclone.Clone(targetInterface)
+		targetValue = deepclone.Clone(targetValue)
 	}
 
-	merged := applyPatch(targetInterface, patchInterface)
+	merged := applyPatch(targetValue, patchValue)
 
-	result, err := convertFromInterface[T](merged)
+	result, err := fromJSONValue[T](merged)
 	if err != nil {
 		return nil, fmt.Errorf("convert result: %w", err)
 	}
@@ -78,19 +73,19 @@ func Merge[T Document](target, patch T, opts ...Option) (*Result[T], error) {
 func Generate[T Document](source, target T) (T, error) {
 	var zero T
 
-	sourceInterface, err := convertToInterface(source)
+	sourceValue, err := toJSONValue(source)
 	if err != nil {
 		return zero, fmt.Errorf("convert source: %w", err)
 	}
 
-	targetInterface, err := convertToInterface(target)
+	targetValue, err := toJSONValue(target)
 	if err != nil {
 		return zero, fmt.Errorf("convert target: %w", err)
 	}
 
-	patch := generatePatch(sourceInterface, targetInterface, true)
+	patch := generatePatch(sourceValue, targetValue, true)
 
-	result, err := convertFromInterface[T](patch)
+	result, err := fromJSONValue[T](patch)
 	if err != nil {
 		return zero, fmt.Errorf("convert patch: %w", err)
 	}
@@ -100,8 +95,12 @@ func Generate[T Document](source, target T) (T, error) {
 
 // Valid reports whether patch is accepted as a JSON Merge Patch value.
 func Valid[T Document](patch T) bool {
-	_, err := convertToInterface(patch)
+	_, err := toJSONValue(patch)
 	return err == nil
+}
+
+func wrapError(stage string, sentinel, err error) error {
+	return fmt.Errorf("%s: %w", stage, errors.Join(sentinel, err))
 }
 
 func applyPatch(target, patch any) any {
@@ -110,8 +109,8 @@ func applyPatch(target, patch any) any {
 		return patch
 	}
 
-	targetObj, isTargetObject := target.(map[string]any)
-	if !isTargetObject || targetObj == nil {
+	targetObj, targetIsObject := target.(map[string]any)
+	if !targetIsObject || targetObj == nil {
 		targetObj = make(map[string]any, len(patchObj))
 	}
 
@@ -128,13 +127,13 @@ func applyPatch(target, patch any) any {
 }
 
 func generatePatch(source, target any, preserveEmptyObject bool) any {
-	targetObj, isTargetObject := target.(map[string]any)
-	if !isTargetObject {
+	targetObj, targetIsObject := target.(map[string]any)
+	if !targetIsObject {
 		return target
 	}
 
-	sourceObj, isSourceObject := source.(map[string]any)
-	if !isSourceObject {
+	sourceObj, sourceIsObject := source.(map[string]any)
+	if !sourceIsObject {
 		return target
 	}
 
@@ -153,10 +152,10 @@ func generatePatch(source, target any, preserveEmptyObject bool) any {
 			continue
 		}
 
-		sourceValueObj, isSourceObj := sourceValue.(map[string]any)
-		targetValueObj, isTargetObj := targetValue.(map[string]any)
-		if isSourceObj && isTargetObj {
-			nestedPatch := generatePatch(sourceValueObj, targetValueObj, false)
+		sourceObject, sourceIsObject := sourceValue.(map[string]any)
+		targetObject, targetIsObject := targetValue.(map[string]any)
+		if sourceIsObject && targetIsObject {
+			nestedPatch := generatePatch(sourceObject, targetObject, false)
 			if nestedPatch != nil {
 				setPatch(key, nestedPatch)
 			}
@@ -215,12 +214,12 @@ func deepEqual(a, b any) bool {
 	}
 }
 
-func convertToInterface[T Document](doc T) (any, error) {
+func toJSONValue[T Document](doc T) (any, error) {
 	switch typed := any(doc).(type) {
 	case []byte:
 		var result any
 		if err := json.Unmarshal(typed, &result); err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrUnmarshal, err)
+			return nil, wrapError("unmarshal bytes", ErrUnmarshal, err)
 		}
 		return result, nil
 
@@ -234,7 +233,7 @@ func convertToInterface[T Document](doc T) (any, error) {
 	case map[string]any:
 		if typed != nil {
 			if _, err := json.Marshal(typed); err != nil {
-				return nil, fmt.Errorf("%w: %w", ErrMarshal, err)
+				return nil, wrapError("marshal map", ErrMarshal, err)
 			}
 		}
 		return typed, nil
@@ -248,31 +247,31 @@ func convertToInterface[T Document](doc T) (any, error) {
 	default:
 		data, err := json.Marshal(typed)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrMarshal, err)
+			return nil, wrapError("marshal document", ErrMarshal, err)
 		}
 
 		var result any
 		if err := json.Unmarshal(data, &result); err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrUnmarshal, err)
+			return nil, wrapError("unmarshal document", ErrUnmarshal, err)
 		}
 		return result, nil
 	}
 }
 
-func convertFromInterface[T Document](val any) (T, error) {
+func fromJSONValue[T Document](val any) (T, error) {
 	var zero T
 
 	if _, ok := any(zero).(map[string]any); ok {
 		m, ok := val.(map[string]any)
 		if !ok {
-			return zero, fmt.Errorf("%w: expected map[string]any, got %T", ErrConversion, val)
+			return zero, fmt.Errorf("expected map[string]any, got %T: %w", val, ErrConversion)
 		}
 		return any(m).(T), nil
 	}
 
 	data, err := json.Marshal(val)
 	if err != nil {
-		return zero, fmt.Errorf("%w: %w", ErrMarshal, err)
+		return zero, wrapError("marshal result", ErrMarshal, err)
 	}
 
 	switch any(zero).(type) {
@@ -283,7 +282,7 @@ func convertFromInterface[T Document](val any) (T, error) {
 	default:
 		var target T
 		if err := json.Unmarshal(data, &target); err != nil {
-			return zero, fmt.Errorf("%w: %w", ErrUnmarshal, err)
+			return zero, wrapError("unmarshal result", ErrUnmarshal, err)
 		}
 		return target, nil
 	}
