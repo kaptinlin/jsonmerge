@@ -103,6 +103,20 @@ func wrapError(stage string, sentinel, err error) error {
 	return fmt.Errorf("%s: %w", stage, errors.Join(sentinel, err))
 }
 
+func isJSONNull(value any) bool {
+	if value == nil {
+		return true
+	}
+
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+	case reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
 func applyPatch(target, patch any) any {
 	patchObj, isPatchObject := patch.(map[string]any)
 	if !isPatchObject {
@@ -115,7 +129,7 @@ func applyPatch(target, patch any) any {
 	}
 
 	for name, value := range patchObj {
-		if value == nil {
+		if isJSONNull(value) {
 			delete(targetObj, name)
 			continue
 		}

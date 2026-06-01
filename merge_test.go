@@ -725,6 +725,33 @@ func TestErrorCases(t *testing.T) {
 		}
 	})
 
+	t.Run("typed_nil_patch_values_delete_members", func(t *testing.T) {
+		t.Parallel()
+		var optional *int
+		var tags []string
+		var metadata map[string]string
+
+		target := map[string]any{
+			"metadata": map[string]any{"source": "user"},
+			"optional": 1,
+			"stable":   true,
+			"tags":     []any{"go"},
+		}
+		patch := map[string]any{
+			"metadata": metadata,
+			"optional": optional,
+			"tags":     tags,
+		}
+
+		result, err := Merge(target, patch)
+		require.NoError(t, err)
+
+		expected := map[string]any{"stable": true}
+		if diff := cmp.Diff(expected, result.Doc); diff != "" {
+			t.Errorf("Merge() mismatch (-want +got):\n%s", diff)
+		}
+	})
+
 	t.Run("object_patch_replaces_scalar_target", func(t *testing.T) {
 		t.Parallel()
 		patch := map[string]any{
