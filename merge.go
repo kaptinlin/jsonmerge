@@ -245,10 +245,11 @@ func toJSONValue[T Document](doc T) (any, error) {
 		return typed, nil
 
 	case map[string]any:
-		if typed != nil {
-			if _, err := json.Marshal(typed); err != nil {
-				return nil, wrapError("marshal map", ErrMarshal, err)
-			}
+		if typed == nil {
+			return nil, nil
+		}
+		if _, err := json.Marshal(typed); err != nil {
+			return nil, wrapError("marshal map", ErrMarshal, err)
 		}
 		return typed, nil
 
@@ -276,6 +277,9 @@ func fromJSONValue[T Document](val any) (T, error) {
 	var zero T
 
 	if _, ok := any(zero).(map[string]any); ok {
+		if val == nil {
+			return zero, nil
+		}
 		m, ok := val.(map[string]any)
 		if !ok {
 			return zero, fmt.Errorf("expected map[string]any, got %T: %w", val, ErrConversion)

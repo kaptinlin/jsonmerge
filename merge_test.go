@@ -752,6 +752,20 @@ func TestErrorCases(t *testing.T) {
 		}
 	})
 
+	t.Run("typed_nil_map_patch_replaces_whole_document", func(t *testing.T) {
+		t.Parallel()
+		target := map[string]any{"name": "John", "age": 30}
+		var patch map[string]any
+
+		result, err := Merge(target, patch)
+		require.NoError(t, err)
+
+		require.Nil(t, result.Doc)
+		if diff := cmp.Diff(map[string]any{"name": "John", "age": 30}, target); diff != "" {
+			t.Errorf("Merge() target mutated (-want +got):\n%s", diff)
+		}
+	})
+
 	t.Run("object_patch_replaces_scalar_target", func(t *testing.T) {
 		t.Parallel()
 		patch := map[string]any{
@@ -1025,6 +1039,20 @@ func TestGenerate(t *testing.T) {
 		patch, err := Generate[any](map[string]any{"status": "draft"}, "published")
 		require.NoError(t, err)
 		assert.Equal(t, "published", patch)
+	})
+
+	t.Run("generate_nil_map_target_replaces_whole_document", func(t *testing.T) {
+		t.Parallel()
+		source := map[string]any{"name": "John"}
+		var target map[string]any
+
+		patch, err := Generate(source, target)
+		require.NoError(t, err)
+		require.Nil(t, patch)
+
+		result, err := Merge(source, patch)
+		require.NoError(t, err)
+		require.Nil(t, result.Doc)
 	})
 
 	t.Run("generate_wraps_source_conversion_errors", func(t *testing.T) {
