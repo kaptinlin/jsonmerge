@@ -654,6 +654,47 @@ func TestMutateOption(t *testing.T) {
 		}
 	})
 
+	t.Run("immutable_by_default_does_not_alias_nested_patch_values", func(t *testing.T) {
+		t.Parallel()
+		original := map[string]any{
+			"profile": map[string]any{
+				"settings": map[string]any{
+					"theme": "dark",
+				},
+			},
+		}
+		patch := map[string]any{
+			"profile": map[string]any{
+				"settings": map[string]any{
+					"theme": "light",
+					"flags": []any{
+						map[string]any{"name": "new"},
+					},
+				},
+			},
+		}
+
+		result, err := Merge(original, patch)
+		require.NoError(t, err)
+
+		flags := result.Doc["profile"].(map[string]any)["settings"].(map[string]any)["flags"].([]any)
+		flags[0].(map[string]any)["name"] = "changed"
+
+		expectedPatch := map[string]any{
+			"profile": map[string]any{
+				"settings": map[string]any{
+					"theme": "light",
+					"flags": []any{
+						map[string]any{"name": "new"},
+					},
+				},
+			},
+		}
+		if diff := cmp.Diff(expectedPatch, patch); diff != "" {
+			t.Errorf("Merge() patch mutated (-want +got):\n%s", diff)
+		}
+	})
+
 	t.Run("mutate_option", func(t *testing.T) {
 		t.Parallel()
 		original := map[string]any{
