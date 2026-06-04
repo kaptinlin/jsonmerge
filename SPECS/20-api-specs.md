@@ -1,68 +1,70 @@
 # API Specs
 
-## Merge Contract
+## Patch Construction
 
-`Merge[T Document](target, patch T, opts ...Option) (*Result[T], error)` applies a merge patch and returns the merged document wrapped in `Result[T]`.
-The result preserves the caller's document type `T`.
+`Parse(data []byte) (Patch, error)` parses encoded JSON text as a merge patch.
+Malformed text returns an error matching `ErrInvalidJSON`.
 
-By default, object merges avoid mutating map targets. A non-object patch replaces the target value entirely, even when the target started as an object.
+`NewPatch(value any) (Patch, error)` converts a Go value into a canonical patch.
+Values that cannot be represented as JSON return an error matching `ErrInvalidValue`.
 
-> **Why**: Callers should be able to keep their existing document type and rely on RFC 7386 replacement behavior without a separate API.
+> **Why**: Patch construction is the validation boundary. After construction, a `Patch` is safe to reuse.
 >
-> **Rejected**: In-place mutation by default and representation-specific merge entry points.
+> **Rejected**: `Valid` as a bool-only duplicate of patch construction.
 
-## Generate Contract
+## Apply Contract
 
-`Generate[T Document](source, target T) (T, error)` returns a patch that transforms `source` into `target` when reapplied with `Merge`.
-The patch value is returned in the same type `T`.
+`Apply[T any](target T, patch Patch) (T, error)` applies a merge patch and returns the requested Go type `T` when the merged JSON value can be represented without loss.
 
-> **Why**: Keeping generation and application in the same generic type makes round-trips predictable for callers.
+By default, `Apply` never mutates caller-owned maps. A non-object patch replaces the target JSON value entirely, even when the target started as an object.
+
+> **Why**: Callers should get the type they asked for only when that type can honestly carry the result.
 >
-> **Rejected**: Always returning `map[string]any` or another canonical patch type.
+> **Rejected**: In-place mutation options, target-shaped patch arguments, and silent lossy projection.
 
-## Valid Contract
+## Diff Contract
 
-`Valid[T Document](patch T) bool` reports whether a value is accepted as a patch input by the package's conversion rules.
-It is an acceptance check, not a schema or business-rule validator.
+`Diff(source, target any) (Patch, error)` returns a patch that transforms `source` into `target` in the canonical JSON model.
+The returned patch is independent of the static type of either input.
 
-> **Why**: Callers often need a cheap gate before calling `Merge`, but RFC 7386 does not define domain validation.
+> **Why**: A patch is its own concept. It should not be forced through the source or target type.
 >
-> **Rejected**: Validation that inspects application-specific structure or semantics.
+> **Rejected**: Returning generated patches as `map[string]any`, `[]byte`, `string`, or the source type.
 
-## Result and Options
+## JSON Text Contract
 
-`Result[T]` exposes the merged document as `Doc`.
-`WithMutate(true)` permits in-place updates for map targets during object merges. It does not redefine RFC replacement semantics.
+`type JSON string` marks a string as encoded JSON text.
+`[]byte` is also encoded JSON text.
+Plain `string` is a JSON string scalar.
 
-> **Why**: Mutation is a performance trade-off, not a semantic mode switch.
+> **Why**: The data form must be visible at the call site.
 >
-> **Rejected**: Option sets that alter merge rules or create separate mutable result types.
+> **Rejected**: Treating valid strings as JSON text and invalid strings as raw values.
 
 ## Error Contract
 
 Failures wrap one of these sentinel errors so callers can use `errors.Is`:
 
-- `ErrMarshal`
-- `ErrUnmarshal`
-- `ErrConversion`
+- `ErrInvalidJSON`
+- `ErrInvalidValue`
+- `ErrCannotRepresent`
 
 Context may be added around the sentinel, but the sentinel must remain in the error chain.
-Invalid JSON bytes fail with an unmarshal error. Invalid JSON strings may still succeed because they are accepted as raw string scalar values.
+Callers must not match exact error strings.
 
-> **Why**: Callers need stable error classes without losing local context.
+> **Why**: Stable error classes should describe user-visible problems, not the current marshal/unmarshal stage.
 >
-> **Rejected**: Large error taxonomies and exact-string matching.
+> **Rejected**: Implementation-stage sentinels and exact-string matching.
 
 ## Forbidden
 
-- Do not return a different document type than the caller requested.
-- Do not make `WithMutate` change RFC 7386 semantics.
-- Do not treat `Valid` as a substitute for application-level validation.
+- Do not add compatibility wrappers for removed APIs.
+- Do not expose a mutable `Patch` value tree.
+- Do not return `Result[T]` unless it carries current, proven semantics beyond `T`.
+- Do not add public options until more than one real option is justified.
 
 ## Acceptance Criteria
 
-- The contract of `Merge`, `Generate`, `Valid`, `Result`, and `WithMutate` is documented in one place.
-- Mutation, replacement, and error behavior are explicit.
+- The contract of `Patch`, `Parse`, `NewPatch`, `Apply`, `Diff`, `JSON`, and error sentinels is documented in one place.
+- Mutation, replacement, string, and projection behavior are explicit.
 - A caller can derive the correct `errors.Is` checks from this spec alone.
-
-**Origin:** Split from the historical `CLAUDE.md` during the SPECS migration.

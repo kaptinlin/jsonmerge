@@ -7,62 +7,78 @@ import (
 	"github.com/kaptinlin/jsonmerge"
 )
 
-func ExampleMerge() {
-	target := map[string]any{"name": "John", "age": 30}
-	patch := map[string]any{"age": 31}
+func ExampleApply() {
+	type User struct {
+		Name string `json:"name"`
+		Age  int    `json:"age"`
+	}
 
-	result, err := jsonmerge.Merge(target, patch)
+	user := User{Name: "John", Age: 30}
+	patch, err := jsonmerge.NewPatch(map[string]any{"name": "Jane"})
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(result.Doc["name"])
-	fmt.Println(result.Doc["age"])
-	// Output:
-	// John
-	// 31
-}
 
-func ExampleMerge_withMutate() {
-	target := map[string]any{"name": "John", "age": 30}
-	patch := map[string]any{"age": 31}
-
-	result, err := jsonmerge.Merge(target, patch, jsonmerge.WithMutate(true))
+	user, err = jsonmerge.Apply(user, patch)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(result.Doc["age"])
-	// Output: 31
-}
 
-func ExampleGenerate() {
-	source := map[string]any{"name": "John", "age": 30, "city": "NYC"}
-	target := map[string]any{"name": "Jane", "age": 30}
-
-	patch, err := jsonmerge.Generate(source, target)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(patch["name"])
-	fmt.Println(patch["city"])
+	fmt.Println(user.Name)
+	fmt.Println(user.Age)
 	// Output:
 	// Jane
-	// <nil>
+	// 30
 }
 
-func ExampleValid() {
-	fmt.Println(jsonmerge.Valid(map[string]any{"name": "Jane"}))
-	fmt.Println(jsonmerge.Valid([]byte(`{"name": "Jane"}`)))
-	fmt.Println(jsonmerge.Valid([]byte(`{invalid}`)))
+func ExampleApply_jsonText() {
+	doc := jsonmerge.JSON(`{"name":"John"}`)
+	patch, err := jsonmerge.Parse([]byte(`{"name":"Jane"}`))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	doc, err = jsonmerge.Apply(doc, patch)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(doc)
 	// Output:
-	// true
-	// true
-	// false
+	// {"name":"Jane"}
 }
 
-func ExampleValid_rawString() {
-	fmt.Println(jsonmerge.Valid("raw string"))
-	fmt.Println(jsonmerge.Valid([]byte(`{invalid}`)))
+func ExampleNewPatch() {
+	patch, err := jsonmerge.NewPatch("raw string")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	doc, err := jsonmerge.Apply("draft", patch)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(doc)
 	// Output:
-	// true
-	// false
+	// raw string
+}
+
+func ExampleDiff() {
+	before := map[string]any{"name": "John", "age": 30}
+	after := map[string]any{"name": "Jane", "age": 30}
+
+	patch, err := jsonmerge.Diff(before, after)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	data, err := patch.MarshalJSON()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(string(data))
+	// Output:
+	// {"name":"Jane"}
 }

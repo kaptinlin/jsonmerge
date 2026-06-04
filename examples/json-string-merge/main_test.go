@@ -9,18 +9,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMain_PrintsMergedJSONStringAndValidation(t *testing.T) {
+func TestMain_PrintsMergedJSONTextAndStringScalar(t *testing.T) {
 	// Capturing stdout mutates process-wide state.
 	output := captureStdout(t, main)
 
-	assert.Contains(t, output, "=== JSON String Merge Example ===")
+	assert.Contains(t, output, "=== JSON Text Merge Example ===")
 	assert.Contains(t, output, `"age":31`)
 	assert.Contains(t, output, `"skills":["Go","JavaScript","Rust"]`)
 	assert.Contains(t, output, `"country":"USA"`)
 	assert.Contains(t, output, `"email":"john@example.com"`)
-	assert.Contains(t, output, "=== Validation ===")
-	assert.Contains(t, output, "Valid patch: true")
-	assert.Contains(t, output, "Invalid patch: true")
+	assert.Contains(t, output, "=== String Scalar ===")
+	assert.Contains(t, output, `Scalar result: {"name": invalid}`)
 }
 
 func captureStdout(t *testing.T, fn func()) string {

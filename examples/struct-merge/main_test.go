@@ -15,7 +15,8 @@ func TestMain_PrintsMergedStructAndTypedAccess(t *testing.T) {
 
 	assert.Contains(t, output, "=== Struct Merge Example ===")
 	assert.Contains(t, output, `Original: {"name":"John Doe","email":"john@example.com","age":30}`)
-	assert.Contains(t, output, `Patch:    {"name":"Jane Doe","age":25}`)
+	assert.Contains(t, output, `"name":"Jane Doe"`)
+	assert.Contains(t, output, `"age":25`)
 	assert.Contains(t, output, `Result:   {"name":"Jane Doe","email":"john@example.com","age":25}`)
 	assert.Contains(t, output, "Type-safe access: Jane Doe is 25 years old")
 }

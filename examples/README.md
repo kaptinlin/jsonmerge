@@ -19,8 +19,8 @@ Each directory focuses on one document form:
 
 - `struct-merge` — type-safe struct operations
 - `map-merge` — dynamic map data operations
-- `json-string-merge` — JSON string processing
-- `json-bytes-merge` — JSON byte processing
+- `json-string-merge` — explicit `jsonmerge.JSON` text and string scalar processing
+- `json-bytes-merge` — JSON byte text processing
 
 ## Core Concepts
 
@@ -35,5 +35,6 @@ Each directory focuses on one document form:
 
 - `struct` — type-safe documents converted through JSON
 - `map[string]any` — dynamic object form
-- `string` — valid JSON strings or raw string scalar values
-- `[]byte` — valid JSON byte slices
+- `jsonmerge.JSON` — JSON text carried as a string
+- `string` — JSON string scalar values
+- `[]byte` — JSON text bytes

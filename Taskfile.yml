@@ -162,13 +162,27 @@ tasks:
     desc: Check if go.mod and go.sum are tidy
     cmds:
       - echo "Checking go.mod and go.sum are tidy..."
-      - go mod tidy
-      - git diff --exit-code -- go.mod go.sum
+      - |
+        tmpdir="$(mktemp -d)"
+        trap 'rm -rf "$tmpdir"' EXIT
+        cp go.mod "$tmpdir/go.mod"
+        cp go.sum "$tmpdir/go.sum"
+        go mod tidy
+        if ! cmp -s go.mod "$tmpdir/go.mod" || ! cmp -s go.sum "$tmpdir/go.sum"; then
+          diff -u "$tmpdir/go.mod" go.mod || true
+          diff -u "$tmpdir/go.sum" go.sum || true
+          exit 1
+        fi
 
   yamllint:
     desc: Run yamllint
     cmds:
-      - yamllint -s .
+      - |
+        if command -v yamllint >/dev/null 2>&1; then
+          yamllint -s .
+        else
+          python3 -m yamllint -s .
+        fi
 
   vuln:
     desc: Run govulncheck

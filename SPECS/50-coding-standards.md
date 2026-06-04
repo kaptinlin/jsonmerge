@@ -17,7 +17,9 @@ Contributors must preserve these semantics:
 - `null` deletes object members.
 - Non-object patches replace the target.
 - Arrays replace whole values.
-- Invalid JSON bytes fail fast during conversion.
+- Malformed JSON text fails fast.
+- Plain `string` is a JSON string scalar.
+- Typed results are returned only when projection is lossless.
 
 > **Why**: These rules are the product contract, not implementation details.
 >
@@ -25,7 +27,7 @@ Contributors must preserve these semantics:
 
 ## Error and Conversion Rules
 
-Use the minimal sentinel set `ErrMarshal`, `ErrUnmarshal`, and `ErrConversion`.
+Use the minimal sentinel set `ErrInvalidJSON`, `ErrInvalidValue`, and `ErrCannotRepresent`.
 Wrap underlying failures with `%w`, keep messages lowercase, and add only enough context to identify the failing stage.
 Prefer JSON conversion boundaries over custom representation-specific semantics.
 
@@ -35,7 +37,8 @@ Prefer JSON conversion boundaries over custom representation-specific semantics.
 
 ## Implementation Rules
 
-Default behavior must preserve map inputs unless the caller opts into `WithMutate(true)`.
+Default behavior must preserve caller-owned maps.
+`Patch` must remain immutable and reusable.
 Keep hot-path code direct where measurements show a benefit, but preserve the current semantic contract across common and fallback code paths.
 Benchmark before keeping a performance change.
 
@@ -48,7 +51,7 @@ Benchmark before keeping a performance change.
 For code changes, run `task test` and `task lint`.
 For markdown changes, keep `README.md`, `CLAUDE.md`, and `SPECS/**` aligned.
 For YAML changes such as `lefthook.yml`, run `task yamllint`.
-Tests must keep coverage for RFC Appendix A behavior, mutation rules, conversion failures, raw-string handling, and benchmarks.
+Tests must keep coverage for RFC Appendix A behavior, string scalar versus JSON text handling, conversion failures, lossless projection, map immutability, canonical diffing, examples, and benchmarks.
 
 > **Why**: This package's main failure modes are semantic drift and unchecked tooling gaps.
 >
@@ -67,5 +70,3 @@ Tests must keep coverage for RFC Appendix A behavior, mutation rules, conversion
 - Code and docs describe the same behavior.
 - Pre-commit and task-based linting cover code and YAML.
 - Contributors know which behavioral changes require new tests and benchmarks.
-
-**Origin:** This file preserves the git history of the original `CLAUDE.md`; the rest of the `SPECS/` set was split from the same source.

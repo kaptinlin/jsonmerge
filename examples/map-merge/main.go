@@ -24,7 +24,7 @@ func main() {
 		"hobbies": []string{"reading", "swimming"},
 	}
 
-	patch := map[string]any{
+	patchValue := map[string]any{
 		"age": 31,
 		"address": map[string]any{
 			"city":    "Boston",
@@ -35,14 +35,19 @@ func main() {
 		"email":   "john@example.com",
 	}
 
-	result, err := jsonmerge.Merge(original, patch)
+	patch, err := jsonmerge.NewPatch(patchValue)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	result, err := jsonmerge.Apply(original, patch)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	fmt.Println("Original:", prettyJSON(original))
-	fmt.Println("Patch:   ", prettyJSON(patch))
-	fmt.Println("Result:  ", prettyJSON(result.Doc))
+	fmt.Println("Patch:   ", prettyJSON(patchValue))
+	fmt.Println("Result:  ", prettyJSON(result))
 
 	fmt.Println("\n=== Key Behaviors ===")
 	fmt.Println("• Objects are merged recursively")

@@ -3,37 +3,31 @@ package jsonmerge
 import (
 	"testing"
 
-	"github.com/go-json-experiment/json"
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestGeneratePreservesRawJSONDocumentTypes(t *testing.T) {
+func TestApplyPreservesJSONTextDocumentTypes(t *testing.T) {
 	t.Parallel()
 
 	t.Run("bytes", func(t *testing.T) {
 		t.Parallel()
-		patch, err := Generate([]byte(`{"name":"John","age":30}`), []byte(`{"name":"Jane","age":30}`))
+
+		patch := mustParsePatch(t, `{"name":"Jane"}`)
+		got, err := Apply([]byte(`{"name":"John","age":30}`), patch)
 		require.NoError(t, err)
 
-		var got map[string]any
-		require.NoError(t, json.Unmarshal(patch, &got))
-		if diff := cmp.Diff(map[string]any{"name": "Jane"}, got); diff != "" {
-			t.Errorf("Generate() patch mismatch (-want +got):\n%s", diff)
-		}
+		assert.JSONEq(t, `{"name":"Jane","age":30}`, string(got))
 	})
 
-	t.Run("string", func(t *testing.T) {
+	t.Run("json text type", func(t *testing.T) {
 		t.Parallel()
-		patch, err := Generate(`{"name":"John","age":30}`, `{"name":"Jane","age":30}`)
+
+		patch := mustParsePatch(t, `{"name":"Jane"}`)
+		got, err := Apply(JSON(`{"name":"John","age":30}`), patch)
 		require.NoError(t, err)
 
-		var got map[string]any
-		require.NoError(t, json.Unmarshal([]byte(patch), &got))
-		if diff := cmp.Diff(map[string]any{"name": "Jane"}, got); diff != "" {
-			t.Errorf("Generate() patch mismatch (-want +got):\n%s", diff)
-		}
+		assert.JSONEq(t, `{"name":"Jane","age":30}`, string(got))
 	})
 }
 
@@ -42,19 +36,24 @@ type revision int
 func TestScalarDocumentsPreserveNamedType(t *testing.T) {
 	t.Parallel()
 
-	t.Run("merge", func(t *testing.T) {
+	t.Run("apply", func(t *testing.T) {
 		t.Parallel()
 
-		result, err := Merge(revision(1), revision(2))
+		patch := mustNewPatch(t, revision(2))
+		got, err := Apply(revision(1), patch)
 		require.NoError(t, err)
-		assert.Equal(t, revision(2), result.Doc)
+
+		assert.Equal(t, revision(2), got)
 	})
 
-	t.Run("generate", func(t *testing.T) {
+	t.Run("diff", func(t *testing.T) {
 		t.Parallel()
 
-		patch, err := Generate(revision(1), revision(2))
+		patch, err := Diff(revision(1), revision(2))
 		require.NoError(t, err)
-		assert.Equal(t, revision(2), patch)
+
+		data, err := patch.MarshalJSON()
+		require.NoError(t, err)
+		assert.JSONEq(t, `2`, string(data))
 	})
 }

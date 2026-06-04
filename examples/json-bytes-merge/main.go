@@ -23,7 +23,7 @@ func main() {
 		"version": "1.0"
 	}`)
 
-	patch := []byte(`{
+	patchData := []byte(`{
 		"user": {
 			"email": null,
 			"phone": "+1-555-0123"
@@ -35,7 +35,12 @@ func main() {
 		"version": "1.1"
 	}`)
 
-	result, err := jsonmerge.Merge(original, patch)
+	patch, err := jsonmerge.Parse(patchData)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	result, err := jsonmerge.Apply(original, patch)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -43,20 +48,25 @@ func main() {
 	fmt.Println("Original:")
 	fmt.Println(string(original))
 	fmt.Println("\nPatch:")
-	fmt.Println(string(patch))
+	fmt.Println(string(patchData))
 	fmt.Println("\nResult:")
-	fmt.Println(string(result.Doc))
+	fmt.Println(string(result))
 
-	fmt.Println("\n=== Generate Patch ===")
+	fmt.Println("\n=== Diff Patch ===")
 	source := []byte(`{"name": "Alice", "age": 25}`)
 	target := []byte(`{"name": "Alice", "age": 26, "city": "Boston"}`)
 
-	generatedPatch, err := jsonmerge.Generate(source, target)
+	generatedPatch, err := jsonmerge.Diff(source, target)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	data, err := generatedPatch.MarshalJSON()
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	fmt.Printf("Source: %s\n", source)
 	fmt.Printf("Target: %s\n", target)
-	fmt.Printf("Generated Patch: %s\n", generatedPatch)
+	fmt.Printf("Generated Patch: %s\n", data)
 }

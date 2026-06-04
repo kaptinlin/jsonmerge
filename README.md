@@ -4,16 +4,16 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/kaptinlin/jsonmerge.svg)](https://pkg.go.dev/github.com/kaptinlin/jsonmerge)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A type-safe RFC 7386 JSON Merge Patch library for Go that preserves the caller's document type
+A small RFC 7386 JSON Merge Patch library for Go with explicit patch values and lossless typed results
 
 ## Features
 
-- **RFC 7386 semantics**: Object patches merge recursively, `null` deletes fields, non-object patches replace the target, and arrays replace as a whole
-- **Type preservation**: `Merge` and `Generate` return the same document type they receive
-- **Flexible document forms**: Work with `map[string]any`, JSON `[]byte`, JSON `string`, structs, and scalar values
-- **Safe-by-default map merges**: Preserve `map[string]any` inputs unless you opt into `WithMutate(true)`
-- **Small API**: Learn `Merge`, `Generate`, `Valid`, and `WithMutate`
-- **Benchmarked and tested**: Includes RFC Appendix A coverage, benchmarks, and runnable examples
+- **RFC 7386 semantics**: Objects merge recursively, `null` deletes object members, non-object patches replace the target, and arrays replace as a whole
+- **Explicit patches**: Build a `Patch` with `Parse` for JSON text or `NewPatch` for Go values
+- **Clear string semantics**: Plain `string` is a JSON string scalar; use `[]byte` or `jsonmerge.JSON` for encoded JSON text
+- **Lossless results**: `Apply` returns the requested Go type when the merged JSON value can be represented without loss
+- **Canonical equality**: `Diff` and `Apply` share one JSON value model across maps, structs, bytes, and JSON text
+- **Small API**: Learn `Patch`, `Parse`, `NewPatch`, `Apply`, `Diff`, and `MarshalJSON`
 
 ## Installation
 
@@ -37,16 +37,23 @@ import (
 
 func main() {
 	target := map[string]any{"name": "John", "age": 30}
-	patch := map[string]any{"age": 31, "email": "john@example.com"}
 
-	result, err := jsonmerge.Merge(target, patch)
+	patch, err := jsonmerge.NewPatch(map[string]any{
+		"age":   31,
+		"email": "john@example.com",
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println(result.Doc["name"])
-	fmt.Println(result.Doc["age"])
-	fmt.Println(result.Doc["email"])
+	result, err := jsonmerge.Apply(target, patch)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(result["name"])
+	fmt.Println(result["age"])
+	fmt.Println(result["email"])
 }
 ```
 
@@ -54,26 +61,28 @@ func main() {
 
 | Form | Behavior |
 | --- | --- |
-| `map[string]any` | Canonical in-memory object form |
-| `[]byte` | Must contain valid JSON |
-| `string` | Parsed as JSON when valid; otherwise treated as a raw string scalar |
-| Structs and typed Go values | Converted through JSON before merge or generation |
-| Scalars and `nil` | Accepted when they fit the call's static type `T` |
+| `map[string]any` | Object document form |
+| `[]byte` | Encoded JSON text; malformed text returns `ErrInvalidJSON` |
+| `jsonmerge.JSON` | Encoded JSON text carried as a string |
+| `string` | JSON string scalar, never parsed as JSON text |
+| Structs and typed Go values | Converted through JSON, then projected back without loss |
+| Scalars and `nil` | Accepted when the result can be represented as the requested type |
 
-Invalid JSON bytes fail. Invalid JSON strings remain valid raw string values.
+If the merged JSON value cannot be represented by the requested Go type, `Apply` returns `ErrCannotRepresent`.
 
 ## Core Operations
 
 | API | Description |
 | --- | --- |
-| `Merge[T Document](target, patch T, opts ...Option)` | Apply a merge patch and return `*Result[T]` |
-| `Generate[T Document](source, target T)` | Build a merge patch that transforms `source` into `target` |
-| `Valid[T Document](patch T)` | Report whether a value is accepted as a patch input |
-| `WithMutate(true)` | Allow in-place updates for `map[string]any` targets during object merges |
+| `Parse(data []byte) (Patch, error)` | Parse encoded JSON text as a merge patch |
+| `NewPatch(value any) (Patch, error)` | Convert a Go value into a merge patch |
+| `Apply[T any](target T, patch Patch) (T, error)` | Apply a patch and return `T` when projection is lossless |
+| `Diff(source, target any) (Patch, error)` | Build a patch that transforms source into target in the canonical JSON model |
+| `(Patch).MarshalJSON() ([]byte, error)` | Encode a patch for storage or transport |
 
-## Struct Patch Semantics
+## Struct Targets
 
-Struct patches follow JSON marshaling rules. Zero values overwrite fields once they are present in the marshaled patch.
+Use sparse object patches for typed targets. Struct zero values are normal JSON values when you put the struct itself into `NewPatch`.
 
 ```go
 type User struct {
@@ -83,25 +92,37 @@ type User struct {
 }
 
 user := User{Name: "John", Email: "john@example.com", Age: 30}
-patch := User{Name: "Jane"}
+patch, _ := jsonmerge.NewPatch(map[string]any{"name": "Jane"})
 
-result, _ := jsonmerge.Merge(user, patch)
-fmt.Println(result.Doc.Name)  // Jane
-fmt.Println(result.Doc.Email) // john@example.com
-fmt.Println(result.Doc.Age)   // 0
+user, _ = jsonmerge.Apply(user, patch)
+fmt.Println(user.Name)  // Jane
+fmt.Println(user.Email) // john@example.com
+fmt.Println(user.Age)   // 30
 ```
 
-Use pointer fields or `map[string]any` when you need omission-versus-zero-value distinction.
+Projection is strict. If a patch adds a member that the struct cannot represent, `Apply` fails with `ErrCannotRepresent` instead of silently dropping data.
+
+## JSON Text
+
+Use `Parse` for patch text and `jsonmerge.JSON` or `[]byte` for document text.
+
+```go
+doc := jsonmerge.JSON(`{"name":"John","age":30}`)
+patch, _ := jsonmerge.Parse([]byte(`{"name":"Jane"}`))
+
+doc, _ = jsonmerge.Apply(doc, patch)
+fmt.Println(doc)
+```
+
+Malformed text fails when parsed as text. The same bytes inside a Go `string` are just a string scalar when passed to `NewPatch`.
 
 ## Error Handling
 
 The package wraps failures with sentinel errors so callers can use `errors.Is`:
 
-- `ErrMarshal`
-- `ErrUnmarshal`
-- `ErrConversion`
-
-Invalid JSON bytes return an unmarshal error. Invalid JSON strings are accepted as raw string scalar values.
+- `ErrInvalidJSON`
+- `ErrInvalidValue`
+- `ErrCannotRepresent`
 
 ## Examples
 
@@ -118,7 +139,7 @@ See [`examples/`](examples/) for complete programs.
 
 ## Performance
 
-`WithMutate(true)` reduces allocations for `map[string]any` object merges by allowing in-place updates.
+The public API is pure by default and does not mutate caller-owned maps.
 Run benchmarks on your hardware with:
 
 ```bash
@@ -133,7 +154,7 @@ task lint          # Run golangci-lint and tidy checks
 task verify        # Run deps, fmt, vet, lint, test, and vuln
 ```
 
-For development guidelines and package contracts, see [AGENTS.md](AGENTS.md).
+For development guidelines, see [AGENTS.md](AGENTS.md). For detailed package contracts, see [`SPECS/`](SPECS/).
 
 ## Contributing
 

@@ -1,8 +1,8 @@
 # JSON Merge Patch
 
-RFC 7386 JSON Merge Patch implementation for Go with a small generic API. The package keeps one semantic model across maps, structs, JSON bytes, and JSON strings while returning the same document type it receives.
+RFC 7386 JSON Merge Patch implementation for Go with explicit `Patch` values, one canonical JSON value model, and lossless result projection.
 
-For usage examples, installation, and API-oriented guidance, see [README.md](README.md).
+For installation and usage examples, see [README.md](README.md). For package contracts, read [`SPECS/`](SPECS/).
 
 ## Commands
 
@@ -26,11 +26,12 @@ task verify          # Run deps, fmt, vet, lint, test, and vuln
 
 ```text
 jsonmerge/
-├── merge.go         # Public API, sentinel errors, RFC 7386 merge/generate pipeline
-├── types.go         # Document constraint, Result, Options, and Option helpers
-├── merge_test.go    # RFC compliance, conversion, mutation, concurrency, benchmarks
+├── merge.go         # Public API, sentinels, canonicalization, RFC apply/diff, projection
+├── types.go         # Patch and JSON public types
+├── merge_test.go    # RFC compliance, string semantics, projection, immutability, benchmarks
+├── conversion_test.go
 ├── example_test.go  # Executable examples checked by go test
-├── examples/        # Runnable demos for map, struct, string, and byte documents
+├── examples/        # Runnable demos for map, struct, JSON text, and byte documents
 └── SPECS/           # Canonical package contracts and coding standards
 ```
 
@@ -44,64 +45,83 @@ Workflow:
 
 1. Identify the relevant spec files from the index below.
 2. Verify the current code matches the spec before updating docs.
-3. If code and spec intentionally changed, update the spec and code together instead of documenting stale behavior.
+3. If code and spec intentionally change, update the spec and code together.
 4. Keep `AGENTS.md` as a symlink to `CLAUDE.md`.
 
-## SPECS Index
+## Agent Operating Rules
 
-Specification documents in [`SPECS/`](SPECS/) — package contracts, data-form rules, and coding standards:
+- Read the relevant SPECS before changing code or docs.
+- Prefer the smallest direct change that satisfies the current contract.
+- Keep edits surgical and avoid unrelated refactors.
+- Verify behavior with tests that exercise public contracts, not spec text.
+- Fail loudly with sentinel errors instead of silent coercion or data loss.
+- Preserve user worktree changes you did not make.
+- Do not add policy-only gate scripts that restate docs or SPECS.
+- Do not add redundant tests that only mirror SPECS after behavior is covered.
+
+## SPECS Index
 
 | Spec | Topic |
 | --- | --- |
 | [`SPECS/00-overview.md`](SPECS/00-overview.md) | Package scope, priorities, and non-goals |
 | [`SPECS/10-domain-specs.md`](SPECS/10-domain-specs.md) | RFC 7386 semantics and accepted document forms |
-| [`SPECS/20-api-specs.md`](SPECS/20-api-specs.md) | Public API, options, and error contracts |
+| [`SPECS/20-api-specs.md`](SPECS/20-api-specs.md) | Public API and error contracts |
 | [`SPECS/40-architecture-specs.md`](SPECS/40-architecture-specs.md) | Package layout, execution pipeline, and dependencies |
 | [`SPECS/50-coding-standards.md`](SPECS/50-coding-standards.md) | Contribution rules, tests, and lint requirements |
 
 ## Design Philosophy
 
-- **KISS** — Keep one merge model and one package. Prefer direct code paths over representation-specific layers.
-- **YAGNI** — Stop at RFC 7386: merge application, patch generation, and acceptance checks. No schema logic, transport helpers, or custom merge strategies.
-- **SRP** — `merge.go` owns the merge pipeline, `types.go` owns public types and options, and `SPECS/` owns the written contract.
-- **Simplicity as art** — `Merge`, `Generate`, and `Valid` are the public document operations; `WithMutate(true)` is the only performance knob.
-- **Errors as teachers** — Wrap failures with stable sentinels and enough stage context to show whether conversion, marshal, or unmarshal failed.
+- **KISS** — Keep one RFC 7386 kernel and one package. Prefer direct code paths over representation-specific layers.
+- **YAGNI** — Stop at patch construction, apply, diff, and JSON marshaling. No schema logic, transport helpers, mutation options, or strategy frameworks.
+- **SRP** — `merge.go` owns the merge pipeline; `types.go` owns public value types; `SPECS/` owns the written contract.
+- **Simplicity as art** — `Patch`, `Parse`, `NewPatch`, `Apply`, and `Diff` are the public shape. Add nothing unless the current contract needs it.
+- **Errors as teachers** — Wrap failures with stable user-semantic sentinels and enough stage context to locate the boundary.
 - **Never:** accidental complexity, feature gravity, abstraction theater, configurability cope.
 
 ## API Design Principles
 
-- **Progressive Disclosure**: The common path is `Merge`, `Generate`, and `Valid`; advanced callers can opt into in-place map updates with `WithMutate(true)`.
+- **Explicit patches**: callers construct `Patch` with `Parse` or `NewPatch`; `Apply` never accepts target-shaped patch values.
+- **Visible data forms**: plain `string` is a JSON string scalar; `[]byte` and `JSON` are encoded JSON text.
+- **Lossless projection**: `Apply[T]` returns `T` only when `T` can represent the merged JSON value without silently dropping data.
+- **Pure default**: public apply paths do not mutate caller-owned maps.
 
 ## Coding Rules
 
 ### Must Follow
 
 - Use the Go version declared in `go.mod`; use modern standard library helpers where they simplify code.
-- Follow [Google Go Best Practices](https://google.github.io/go-style/best-practices)
-- Follow [Google Go Style Decisions](https://google.github.io/go-style/decisions)
+- Follow [Google Go Best Practices](https://google.github.io/go-style/best-practices).
+- Follow [Google Go Style Decisions](https://google.github.io/go-style/decisions).
 - KISS/DRY/YAGNI — keep the package small, direct, and free of speculative APIs.
 - Keep `README.md` user-facing and keep canonical contributor rules in `CLAUDE.md` and `SPECS/`.
 - Preserve RFC 7386 semantics across all document forms: object merge, `null` delete, non-object replace, and whole-array replace.
-- Keep `Merge`, `Generate`, and `Valid` representation-preserving: the caller gets back the same static type `T`.
-- Keep default map merges immutable; only `WithMutate(true)` may update `map[string]any` targets in place.
-- Wrap failures with `ErrMarshal`, `ErrUnmarshal`, or `ErrConversion`, and keep the sentinel in the error chain with `%w`.
-- Benchmark hot-path changes and rerun compliance tests when touching merge, generation, conversion, or comparison logic.
+- Keep `Patch` immutable and reusable.
+- Keep plain `string` as a JSON string scalar; use `[]byte` or `JSON` for encoded JSON text.
+- Return `ErrCannotRepresent` when result projection would silently lose JSON data.
+- Wrap failures with `ErrInvalidJSON`, `ErrInvalidValue`, or `ErrCannotRepresent`, and keep the sentinel in the error chain with `%w`.
+- Benchmark hot-path changes and rerun compliance tests when touching apply, diff, canonicalization, projection, or comparison logic.
 - Keep `AGENTS.md` as a symlink to `CLAUDE.md`; do not duplicate the file.
 
 ### Forbidden
 
 - No `panic` in production code — return errors instead.
+- No compatibility wrappers for removed APIs.
 - No premature abstraction — three similar lines are better than a helper used once.
 - No feature creep — only implement what RFC 7386 support or representation-preserving ergonomics require.
 - No element-wise array merges, custom delete markers, or schema-aware merge rules.
-- No behavior drift between map, struct, byte-slice, and string document forms unless the JSON-level contract stays identical.
+- No parse-or-raw string heuristics.
+- No public mutation option unless a future benchmark-backed API is intentionally designed.
+- No behavior drift between map, struct, byte-slice, `JSON`, and string forms unless the JSON-level contract changes for all of them.
 - No documentation masquerading as code — keep contract prose in `SPECS/`, not in unused runtime flags or tables.
+- No policy-only gate scripts that merely restate README, SPECS, or AGENTS rules.
+- No spec mirror tests that assert documentation text instead of user-visible behavior.
 - No working around dependency bugs — if a dependency blocks work, write `reports/<dependency-name>.md` instead of reimplementing it inline.
 
 ## Testing
 
-- Use Go's `testing` package with `testify/assert` in package tests.
-- Keep coverage for RFC 7386 Appendix A behavior, mutation rules, conversion failures, raw-string versus invalid-byte handling, concurrency, and benchmarks.
+- Use Go's `testing` package with `testify/assert` and `testify/require` in package tests.
+- Use `go-cmp` for structural map/slice comparisons.
+- Keep coverage for RFC Appendix A behavior, string scalar versus JSON text, invalid JSON text, invalid Go values, lossless projection, map immutability, canonical diffing, examples, and benchmarks.
 - Keep runnable examples in `example_test.go` aligned with `README.md`.
 - Run `task test` and `task lint` for code changes.
 - Run `task yamllint` for YAML changes such as `lefthook.yml`.
@@ -109,12 +129,12 @@ Specification documents in [`SPECS/`](SPECS/) — package contracts, data-form r
 ## Dependencies
 
 - `github.com/go-json-experiment/json` — marshal and unmarshal at the conversion boundary.
-- `github.com/kaptinlin/deepclone` — preserve immutable default behavior for `map[string]any` object merges.
+- `github.com/google/go-cmp` — structural comparisons in tests.
 - `github.com/stretchr/testify` — test assertions only.
 
 ## Performance
 
-- `WithMutate(true)` is a performance option for `map[string]any` object merges, not a semantic mode.
+- Public `Apply` is pure by default and must preserve caller-owned values.
 - Optimize common JSON primitives and containers only when benchmarks justify it.
 - Run `task bench` after changing hot-path logic.
 

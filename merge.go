@@ -1,126 +1,177 @@
 // Package jsonmerge implements RFC 7386 JSON Merge Patch for Go.
 //
-// It supports structs, map[string]any, []byte, and string documents.
-// Use WithMutate(true) to allow in-place updates when the caller prefers
-// speed over preserving map inputs.
-//
-// See https://datatracker.ietf.org/doc/html/rfc7386.
+// Patches are explicit Patch values. Plain Go strings are JSON string values;
+// use []byte or JSON when carrying encoded JSON text.
 package jsonmerge
 
 import (
 	"errors"
 	"fmt"
-	"maps"
-	"reflect"
-	"slices"
 
 	"github.com/go-json-experiment/json"
-	"github.com/kaptinlin/deepclone"
 )
 
 var (
-	// ErrMarshal indicates JSON marshaling failed.
-	ErrMarshal = errors.New("marshal failed")
+	// ErrInvalidJSON indicates encoded JSON text is malformed.
+	ErrInvalidJSON = errors.New("invalid json")
 
-	// ErrUnmarshal indicates JSON unmarshaling failed.
-	ErrUnmarshal = errors.New("unmarshal failed")
+	// ErrInvalidValue indicates a Go value cannot be represented as JSON.
+	ErrInvalidValue = errors.New("invalid json value")
 
-	// ErrConversion indicates type conversion between document types failed.
-	ErrConversion = errors.New("type conversion failed")
+	// ErrCannotRepresent indicates a JSON result cannot be projected into the requested Go type.
+	ErrCannotRepresent = errors.New("cannot represent json value as requested type")
 )
 
-// Merge applies patch to target according to RFC 7386.
-// By default it preserves map targets; use WithMutate(true) to update them in place.
-// If it fails, the error matches ErrMarshal, ErrUnmarshal, or ErrConversion.
-func Merge[T Document](target, patch T, opts ...Option) (*Result[T], error) {
-	var options Options
-	for _, opt := range opts {
-		opt(&options)
-	}
-
-	targetValue, err := toJSONValue(target)
+// Parse parses encoded JSON text as a merge patch.
+func Parse(data []byte) (Patch, error) {
+	value, err := parseJSON(data)
 	if err != nil {
-		return nil, fmt.Errorf("convert target: %w", err)
+		return Patch{}, fmt.Errorf("parse patch: %w", err)
 	}
-
-	patchValue, err := toJSONValue(patch)
-	if err != nil {
-		return nil, fmt.Errorf("convert patch: %w", err)
-	}
-
-	_, patchIsObject := patchValue.(map[string]any)
-	if patchMap, patchIsMap := any(patch).(map[string]any); patchIsMap && patchMap != nil {
-		patchValue = deepclone.Clone(patchValue)
-	}
-
-	targetMap, targetIsMap := any(target).(map[string]any)
-	if !options.Mutate && patchIsObject && targetIsMap && targetMap != nil {
-		targetValue = deepclone.Clone(targetValue)
-	}
-
-	merged := applyPatch(targetValue, patchValue)
-
-	result, err := fromJSONValue[T](merged)
-	if err != nil {
-		return nil, fmt.Errorf("convert result: %w", err)
-	}
-
-	return &Result[T]{Doc: result}, nil
+	return Patch{value: value}, nil
 }
 
-// Generate returns a merge patch that transforms source into target.
-// If it fails, the error matches ErrMarshal, ErrUnmarshal, or ErrConversion.
-func Generate[T Document](source, target T) (T, error) {
+// NewPatch converts value into a canonical merge patch.
+func NewPatch(value any) (Patch, error) {
+	canonical, err := canonicalize(value)
+	if err != nil {
+		return Patch{}, fmt.Errorf("new patch: %w", err)
+	}
+	return Patch{value: canonical}, nil
+}
+
+// Apply applies patch to target according to RFC 7386.
+func Apply[T any](target T, patch Patch) (T, error) {
 	var zero T
 
-	sourceValue, err := toJSONValue(source)
+	targetValue, err := canonicalize(target)
 	if err != nil {
-		return zero, fmt.Errorf("convert source: %w", err)
+		return zero, fmt.Errorf("canonicalize target: %w", err)
 	}
 
-	targetValue, err := toJSONValue(target)
+	merged := applyPatch(targetValue, patch.value)
+	result, err := project[T](merged)
 	if err != nil {
-		return zero, fmt.Errorf("convert target: %w", err)
-	}
-
-	patch := generatePatch(sourceValue, targetValue, true)
-
-	result, err := fromJSONValue[T](patch)
-	if err != nil {
-		return zero, fmt.Errorf("convert patch: %w", err)
+		return zero, fmt.Errorf("project result: %w", err)
 	}
 
 	return result, nil
 }
 
-// Valid reports whether patch is accepted as a JSON Merge Patch value.
-func Valid[T Document](patch T) bool {
-	_, err := toJSONValue(patch)
-	return err == nil
-}
-
-func wrapError(stage string, sentinel, err error) error {
-	return fmt.Errorf("%s: %w", stage, errors.Join(sentinel, err))
-}
-
-func isJSONNull(value any) bool {
-	if value == nil {
-		return true
+// Diff returns a merge patch that transforms source into target.
+func Diff(source, target any) (Patch, error) {
+	sourceValue, err := canonicalize(source)
+	if err != nil {
+		return Patch{}, fmt.Errorf("canonicalize source: %w", err)
 	}
 
-	v := reflect.ValueOf(value)
-	switch v.Kind() {
-	case reflect.Map, reflect.Pointer, reflect.Slice:
-		return v.IsNil()
-	default:
-		return false
+	targetValue, err := canonicalize(target)
+	if err != nil {
+		return Patch{}, fmt.Errorf("canonicalize target: %w", err)
 	}
+
+	return Patch{value: generatePatch(sourceValue, targetValue, true)}, nil
+}
+
+// MarshalJSON returns the canonical JSON encoding of p.
+func (p Patch) MarshalJSON() ([]byte, error) {
+	data, err := json.Marshal(p.value)
+	if err != nil {
+		return nil, wrapError("marshal patch", ErrInvalidValue, err)
+	}
+	return data, nil
+}
+
+func canonicalize(value any) (any, error) {
+	switch typed := value.(type) {
+	case Patch:
+		return cloneJSONValue(typed.value), nil
+	case JSON:
+		value, err := parseJSON([]byte(typed))
+		if err != nil {
+			return nil, fmt.Errorf("parse json text: %w", err)
+		}
+		return value, nil
+	case []byte:
+		value, err := parseJSON(typed)
+		if err != nil {
+			return nil, fmt.Errorf("parse json bytes: %w", err)
+		}
+		return value, nil
+	}
+
+	data, err := json.Marshal(value)
+	if err != nil {
+		return nil, wrapError("marshal value", ErrInvalidValue, err)
+	}
+
+	var result any
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, wrapError("unmarshal value", ErrInvalidValue, err)
+	}
+	return result, nil
+}
+
+func parseJSON(data []byte) (any, error) {
+	var result any
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, wrapError("unmarshal json text", ErrInvalidJSON, err)
+	}
+	return result, nil
+}
+
+func project[T any](value any) (T, error) {
+	var zero T
+
+	switch any(zero).(type) {
+	case JSON:
+		data, err := json.Marshal(value)
+		if err != nil {
+			return zero, wrapError("marshal json text result", ErrInvalidValue, err)
+		}
+		return any(JSON(data)).(T), nil
+	case []byte:
+		data, err := json.Marshal(value)
+		if err != nil {
+			return zero, wrapError("marshal bytes result", ErrInvalidValue, err)
+		}
+		return any(data).(T), nil
+	case map[string]any:
+		if value == nil {
+			return zero, nil
+		}
+		object, ok := value.(map[string]any)
+		if !ok {
+			return zero, cannotRepresent("expected object result for map target, got %T", value)
+		}
+		return any(cloneJSONValue(object)).(T), nil
+	}
+
+	data, err := json.Marshal(value)
+	if err != nil {
+		return zero, wrapError("marshal result", ErrInvalidValue, err)
+	}
+
+	var result T
+	if err := json.Unmarshal(data, &result, json.RejectUnknownMembers(true)); err != nil {
+		return zero, wrapError("unmarshal result", ErrCannotRepresent, err)
+	}
+
+	roundtrip, err := canonicalize(result)
+	if err != nil {
+		return zero, wrapError("verify result", ErrCannotRepresent, err)
+	}
+	if !equalJSON(value, roundtrip) {
+		return zero, cannotRepresent("projecting into %T changes json value", result)
+	}
+
+	return result, nil
 }
 
 func applyPatch(target, patch any) any {
 	patchObj, isPatchObject := patch.(map[string]any)
 	if !isPatchObject {
-		return patch
+		return cloneJSONValue(patch)
 	}
 
 	targetObj, targetIsObject := target.(map[string]any)
@@ -129,11 +180,10 @@ func applyPatch(target, patch any) any {
 	}
 
 	for name, value := range patchObj {
-		if isJSONNull(value) {
+		if value == nil {
 			delete(targetObj, name)
 			continue
 		}
-
 		targetObj[name] = applyPatch(targetObj[name], value)
 	}
 
@@ -143,12 +193,12 @@ func applyPatch(target, patch any) any {
 func generatePatch(source, target any, preserveEmptyObject bool) any {
 	targetObj, targetIsObject := target.(map[string]any)
 	if !targetIsObject {
-		return target
+		return cloneJSONValue(target)
 	}
 
 	sourceObj, sourceIsObject := source.(map[string]any)
 	if !sourceIsObject {
-		return target
+		return cloneJSONValue(target)
 	}
 
 	var patch map[string]any
@@ -162,7 +212,7 @@ func generatePatch(source, target any, preserveEmptyObject bool) any {
 	for key, targetValue := range targetObj {
 		sourceValue, exists := sourceObj[key]
 		if !exists {
-			setPatch(key, targetValue)
+			setPatch(key, cloneJSONValue(targetValue))
 			continue
 		}
 
@@ -176,8 +226,8 @@ func generatePatch(source, target any, preserveEmptyObject bool) any {
 			continue
 		}
 
-		if !deepEqual(sourceValue, targetValue) {
-			setPatch(key, targetValue)
+		if !equalJSON(sourceValue, targetValue) {
+			setPatch(key, cloneJSONValue(targetValue))
 		}
 	}
 
@@ -196,112 +246,74 @@ func generatePatch(source, target any, preserveEmptyObject bool) any {
 	return nil
 }
 
-func deepEqual(a, b any) bool {
+func equalJSON(a, b any) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil
 	}
 
-	switch va := a.(type) {
+	switch av := a.(type) {
 	case bool:
-		vb, ok := b.(bool)
-		return ok && va == vb
+		bv, ok := b.(bool)
+		return ok && av == bv
 	case float64:
-		vb, ok := b.(float64)
-		return ok && va == vb
-	case int:
-		vb, ok := b.(int)
-		return ok && va == vb
-	case int64:
-		vb, ok := b.(int64)
-		return ok && va == vb
+		bv, ok := b.(float64)
+		return ok && av == bv
 	case string:
-		vb, ok := b.(string)
-		return ok && va == vb
+		bv, ok := b.(string)
+		return ok && av == bv
 	case []any:
-		vb, ok := b.([]any)
-		return ok && slices.EqualFunc(va, vb, deepEqual)
+		bv, ok := b.([]any)
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for i := range av {
+			if !equalJSON(av[i], bv[i]) {
+				return false
+			}
+		}
+		return true
 	case map[string]any:
-		vb, ok := b.(map[string]any)
-		return ok && maps.EqualFunc(va, vb, deepEqual)
+		bv, ok := b.(map[string]any)
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for key, avalue := range av {
+			bvalue, ok := bv[key]
+			if !ok || !equalJSON(avalue, bvalue) {
+				return false
+			}
+		}
+		return true
 	default:
-		return reflect.DeepEqual(a, b)
+		return false
 	}
 }
 
-func toJSONValue[T Document](doc T) (any, error) {
-	switch typed := any(doc).(type) {
-	case []byte:
-		var result any
-		if err := json.Unmarshal(typed, &result); err != nil {
-			return nil, wrapError("unmarshal bytes", ErrUnmarshal, err)
+func cloneJSONValue(value any) any {
+	switch typed := value.(type) {
+	case nil, bool, float64, string:
+		return typed
+	case []any:
+		cloned := make([]any, len(typed))
+		for i, item := range typed {
+			cloned[i] = cloneJSONValue(item)
 		}
-		return result, nil
-
-	case string:
-		var result any
-		if err := json.Unmarshal([]byte(typed), &result); err == nil {
-			return result, nil
-		}
-		return typed, nil
-
+		return cloned
 	case map[string]any:
-		if typed == nil {
-			return nil, nil
+		cloned := make(map[string]any, len(typed))
+		for key, item := range typed {
+			cloned[key] = cloneJSONValue(item)
 		}
-		if _, err := json.Marshal(typed); err != nil {
-			return nil, wrapError("marshal map", ErrMarshal, err)
-		}
-		return typed, nil
-
-	case nil,
-		bool, int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64,
-		float32, float64:
-		return typed, nil
-
+		return cloned
 	default:
-		data, err := json.Marshal(typed)
-		if err != nil {
-			return nil, wrapError("marshal document", ErrMarshal, err)
-		}
-
-		var result any
-		if err := json.Unmarshal(data, &result); err != nil {
-			return nil, wrapError("unmarshal document", ErrUnmarshal, err)
-		}
-		return result, nil
+		return typed
 	}
 }
 
-func fromJSONValue[T Document](val any) (T, error) {
-	var zero T
+func wrapError(stage string, sentinel, err error) error {
+	return fmt.Errorf("%s: %w", stage, errors.Join(sentinel, err))
+}
 
-	if _, ok := any(zero).(map[string]any); ok {
-		if val == nil {
-			return zero, nil
-		}
-		m, ok := val.(map[string]any)
-		if !ok {
-			return zero, fmt.Errorf("expected map[string]any, got %T: %w", val, ErrConversion)
-		}
-		return any(m).(T), nil
-	}
-
-	data, err := json.Marshal(val)
-	if err != nil {
-		return zero, wrapError("marshal result", ErrMarshal, err)
-	}
-
-	switch any(zero).(type) {
-	case []byte:
-		return any(data).(T), nil
-	case string:
-		return any(string(data)).(T), nil
-	default:
-		var target T
-		if err := json.Unmarshal(data, &target); err != nil {
-			return zero, wrapError("unmarshal result", ErrUnmarshal, err)
-		}
-		return target, nil
-	}
+func cannotRepresent(format string, args ...any) error {
+	return fmt.Errorf("%s: %w", fmt.Sprintf(format, args...), ErrCannotRepresent)
 }

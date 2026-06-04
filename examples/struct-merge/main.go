@@ -24,23 +24,29 @@ func main() {
 		Email: "john@example.com",
 		Age:   30,
 	}
+	original := user
 
-	patch := User{
-		Name: "Jane Doe",
-		Age:  25,
+	patchValue := map[string]any{
+		"name": "Jane Doe",
+		"age":  25,
 	}
 
-	result, err := jsonmerge.Merge(user, patch)
+	patch, err := jsonmerge.NewPatch(patchValue)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println("Original:", prettyJSON(user))
-	fmt.Println("Patch:   ", prettyJSON(patch))
-	fmt.Println("Result:  ", prettyJSON(result.Doc))
+	user, err = jsonmerge.Apply(user, patch)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Original:", prettyJSON(original))
+	fmt.Println("Patch:   ", prettyJSON(patchValue))
+	fmt.Println("Result:  ", prettyJSON(user))
 
 	fmt.Printf("\nType-safe access: %s is %d years old\n",
-		result.Doc.Name, result.Doc.Age)
+		user.Name, user.Age)
 }
 
 func prettyJSON(v any) string {

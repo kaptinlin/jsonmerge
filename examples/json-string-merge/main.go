@@ -1,4 +1,4 @@
-// Package main demonstrates string-based JSON Merge Patch usage.
+// Package main demonstrates explicit JSON text and string scalar usage.
 package main
 
 import (
@@ -9,9 +9,9 @@ import (
 )
 
 func main() {
-	fmt.Println("=== JSON String Merge Example ===")
+	fmt.Println("=== JSON Text Merge Example ===")
 
-	original := `{
+	original := jsonmerge.JSON(`{
 		"name": "John Doe",
 		"age": 30,
 		"skills": ["Go", "Python"],
@@ -19,9 +19,9 @@ func main() {
 			"city": "New York",
 			"zip": "10001"
 		}
-	}`
+	}`)
 
-	patch := `{
+	patchData := []byte(`{
 		"age": 31,
 		"skills": ["Go", "JavaScript", "Rust"],
 		"address": {
@@ -29,9 +29,14 @@ func main() {
 			"country": "USA"
 		},
 		"email": "john@example.com"
-	}`
+	}`)
 
-	result, err := jsonmerge.Merge(original, patch)
+	patch, err := jsonmerge.Parse(patchData)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	result, err := jsonmerge.Apply(original, patch)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -39,14 +44,19 @@ func main() {
 	fmt.Println("Original:")
 	fmt.Println(original)
 	fmt.Println("\nPatch:")
-	fmt.Println(patch)
+	fmt.Println(string(patchData))
 	fmt.Println("\nResult:")
-	fmt.Println(result.Doc)
+	fmt.Println(result)
 
-	fmt.Println("\n=== Validation ===")
-	validPatch := `{"name": "Updated"}`
-	invalidPatch := `{"name": invalid}`
+	fmt.Println("\n=== String Scalar ===")
+	scalarPatch, err := jsonmerge.NewPatch(`{"name": invalid}`)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	fmt.Printf("Valid patch: %t\n", jsonmerge.Valid(validPatch))
-	fmt.Printf("Invalid patch: %t\n", jsonmerge.Valid(invalidPatch))
+	scalar, err := jsonmerge.Apply("draft", scalarPatch)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Scalar result: %s\n", scalar)
 }
