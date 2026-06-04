@@ -21,7 +21,7 @@ A type-safe RFC 7386 JSON Merge Patch library for Go that preserves the caller's
 go get github.com/kaptinlin/jsonmerge
 ```
 
-Requires the Go version declared in `go.mod`.
+Requires Go 1.26.3 or newer.
 
 ## Quick Start
 
