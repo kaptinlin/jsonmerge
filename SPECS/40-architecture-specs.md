@@ -40,12 +40,13 @@ Equal object documents produce an empty object patch.
 Production dependencies are limited to:
 
 - `github.com/go-json-experiment/json` for marshal and unmarshal operations
+- `github.com/kaptinlin/deepclone` for cloning canonical JSON values without local clone logic
 
 Tests may use `github.com/google/go-cmp/cmp` and `github.com/stretchr/testify`.
 
-> **Why**: The package needs one JSON boundary and no cloning dependency now that canonicalization produces caller-independent values.
+> **Why**: The package needs one JSON boundary and one reusable cloning boundary so `Patch` values stay immutable without maintaining package-local clone code.
 >
-> **Rejected**: Utility dependencies for helpers that the standard library already covers.
+> **Rejected**: Ad-hoc utility helpers for behavior owned by a focused dependency.
 
 ## Performance Architecture
 

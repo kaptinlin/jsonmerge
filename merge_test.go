@@ -342,6 +342,37 @@ func TestApplyDoesNotMutateCallerOwnedMaps(t *testing.T) {
 	}
 }
 
+func TestApplyDoesNotAliasPatchValues(t *testing.T) {
+	t.Parallel()
+
+	patch := mustNewPatch(t, map[string]any{
+		"profile": map[string]any{
+			"flags": []any{
+				map[string]any{"name": "new"},
+			},
+		},
+	})
+
+	got, err := Apply(map[string]any{}, patch)
+	require.NoError(t, err)
+
+	got["profile"].(map[string]any)["flags"].([]any)[0].(map[string]any)["name"] = "changed"
+
+	next, err := Apply(map[string]any{}, patch)
+	require.NoError(t, err)
+
+	want := map[string]any{
+		"profile": map[string]any{
+			"flags": []any{
+				map[string]any{"name": "new"},
+			},
+		},
+	}
+	if diff := cmp.Diff(want, next); diff != "" {
+		t.Fatalf("Apply() reused mutated patch values (-want +got):\n%s", diff)
+	}
+}
+
 func TestInvalidGoValueFails(t *testing.T) {
 	t.Parallel()
 

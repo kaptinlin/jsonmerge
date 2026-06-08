@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/go-json-experiment/json"
+	"github.com/kaptinlin/deepclone"
 )
 
 var (
@@ -49,7 +50,11 @@ func Apply[T any](target T, patch Patch) (T, error) {
 		return zero, fmt.Errorf("canonicalize target: %w", err)
 	}
 
-	merged := applyPatch(targetValue, patch.value)
+	merged, err := applyPatch(targetValue, patch.value)
+	if err != nil {
+		return zero, fmt.Errorf("apply patch: %w", err)
+	}
+
 	result, err := project[T](merged)
 	if err != nil {
 		return zero, fmt.Errorf("project result: %w", err)
@@ -70,7 +75,12 @@ func Diff(source, target any) (Patch, error) {
 		return Patch{}, fmt.Errorf("canonicalize target: %w", err)
 	}
 
-	return Patch{value: generatePatch(sourceValue, targetValue, true)}, nil
+	patchValue, err := generatePatch(sourceValue, targetValue, true)
+	if err != nil {
+		return Patch{}, fmt.Errorf("generate patch: %w", err)
+	}
+
+	return Patch{value: patchValue}, nil
 }
 
 // MarshalJSON returns the canonical JSON encoding of p.
@@ -85,7 +95,7 @@ func (p Patch) MarshalJSON() ([]byte, error) {
 func canonicalize(value any) (any, error) {
 	switch typed := value.(type) {
 	case Patch:
-		return cloneJSONValue(typed.value), nil
+		return cloneJSONValue(typed.value)
 	case JSON:
 		value, err := parseJSON([]byte(typed))
 		if err != nil {
@@ -144,7 +154,11 @@ func project[T any](value any) (T, error) {
 		if !ok {
 			return zero, cannotRepresent("expected object result for map target, got %T", value)
 		}
-		return any(cloneJSONValue(object)).(T), nil
+		cloned, err := cloneJSONValue(object)
+		if err != nil {
+			return zero, err
+		}
+		return any(cloned).(T), nil
 	}
 
 	data, err := json.Marshal(value)
@@ -168,7 +182,7 @@ func project[T any](value any) (T, error) {
 	return result, nil
 }
 
-func applyPatch(target, patch any) any {
+func applyPatch(target, patch any) (any, error) {
 	patchObj, isPatchObject := patch.(map[string]any)
 	if !isPatchObject {
 		return cloneJSONValue(patch)
@@ -184,13 +198,17 @@ func applyPatch(target, patch any) any {
 			delete(targetObj, name)
 			continue
 		}
-		targetObj[name] = applyPatch(targetObj[name], value)
+		merged, err := applyPatch(targetObj[name], value)
+		if err != nil {
+			return nil, err
+		}
+		targetObj[name] = merged
 	}
 
-	return targetObj
+	return targetObj, nil
 }
 
-func generatePatch(source, target any, preserveEmptyObject bool) any {
+func generatePatch(source, target any, preserveEmptyObject bool) (any, error) {
 	targetObj, targetIsObject := target.(map[string]any)
 	if !targetIsObject {
 		return cloneJSONValue(target)
@@ -212,14 +230,21 @@ func generatePatch(source, target any, preserveEmptyObject bool) any {
 	for key, targetValue := range targetObj {
 		sourceValue, exists := sourceObj[key]
 		if !exists {
-			setPatch(key, cloneJSONValue(targetValue))
+			cloned, err := cloneJSONValue(targetValue)
+			if err != nil {
+				return nil, err
+			}
+			setPatch(key, cloned)
 			continue
 		}
 
 		sourceObject, sourceIsObject := sourceValue.(map[string]any)
 		targetObject, targetIsObject := targetValue.(map[string]any)
 		if sourceIsObject && targetIsObject {
-			nestedPatch := generatePatch(sourceObject, targetObject, false)
+			nestedPatch, err := generatePatch(sourceObject, targetObject, false)
+			if err != nil {
+				return nil, err
+			}
 			if nestedPatch != nil {
 				setPatch(key, nestedPatch)
 			}
@@ -227,7 +252,11 @@ func generatePatch(source, target any, preserveEmptyObject bool) any {
 		}
 
 		if !equalJSON(sourceValue, targetValue) {
-			setPatch(key, cloneJSONValue(targetValue))
+			cloned, err := cloneJSONValue(targetValue)
+			if err != nil {
+				return nil, err
+			}
+			setPatch(key, cloned)
 		}
 	}
 
@@ -238,12 +267,12 @@ func generatePatch(source, target any, preserveEmptyObject bool) any {
 	}
 
 	if patch != nil {
-		return patch
+		return patch, nil
 	}
 	if preserveEmptyObject {
-		return map[string]any{}
+		return map[string]any{}, nil
 	}
-	return nil
+	return nil, nil
 }
 
 func equalJSON(a, b any) bool {
@@ -289,25 +318,12 @@ func equalJSON(a, b any) bool {
 	}
 }
 
-func cloneJSONValue(value any) any {
-	switch typed := value.(type) {
-	case nil, bool, float64, string:
-		return typed
-	case []any:
-		cloned := make([]any, len(typed))
-		for i, item := range typed {
-			cloned[i] = cloneJSONValue(item)
-		}
-		return cloned
-	case map[string]any:
-		cloned := make(map[string]any, len(typed))
-		for key, item := range typed {
-			cloned[key] = cloneJSONValue(item)
-		}
-		return cloned
-	default:
-		return typed
+func cloneJSONValue[T any](value T) (T, error) {
+	cloned, err := deepclone.Clone(value)
+	if err != nil {
+		return value, wrapError("clone json value", ErrInvalidValue, err)
 	}
+	return cloned, nil
 }
 
 func wrapError(stage string, sentinel, err error) error {

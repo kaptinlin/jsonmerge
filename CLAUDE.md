@@ -129,6 +129,7 @@ Workflow:
 ## Dependencies
 
 - `github.com/go-json-experiment/json` — marshal and unmarshal at the conversion boundary.
+- `github.com/kaptinlin/deepclone` — clone canonical JSON values while preserving patch immutability.
 - `github.com/google/go-cmp` — structural comparisons in tests.
 - `github.com/stretchr/testify` — test assertions only.
 
