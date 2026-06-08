@@ -2,6 +2,7 @@ package main
 
 import (
 	"io"
+	"math"
 	"os"
 	"strings"
 	"testing"
@@ -32,11 +33,20 @@ func TestMain_PrintsRFC7386MapBehaviors(t *testing.T) {
 func TestPrettyJSON_FormatsMaps(t *testing.T) {
 	t.Parallel()
 
-	got := prettyJSON(map[string]any{"name": "Jane", "age": 31})
+	got, err := prettyJSON(map[string]any{"name": "Jane", "age": 31})
+	require.NoError(t, err)
 
 	assert.Contains(t, got, "\n")
 	assert.Contains(t, got, `"name": "Jane"`)
 	assert.Contains(t, got, `"age": 31`)
+}
+
+func TestPrettyJSON_ReturnsMarshalErrors(t *testing.T) {
+	t.Parallel()
+
+	_, err := prettyJSON(map[string]any{"limit": math.NaN()})
+
+	require.Error(t, err)
 }
 
 func resultSection(output string) string {

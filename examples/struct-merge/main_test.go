@@ -2,6 +2,7 @@ package main
 
 import (
 	"io"
+	"math"
 	"os"
 	"testing"
 
@@ -24,9 +25,18 @@ func TestMain_PrintsMergedStructAndTypedAccess(t *testing.T) {
 func TestPrettyJSON_FormatsStructs(t *testing.T) {
 	t.Parallel()
 
-	got := prettyJSON(User{Name: "Jane", Email: "jane@example.com", Age: 31})
+	got, err := prettyJSON(User{Name: "Jane", Email: "jane@example.com", Age: 31})
+	require.NoError(t, err)
 
 	assert.Equal(t, `{"name":"Jane","email":"jane@example.com","age":31}`, got)
+}
+
+func TestPrettyJSON_ReturnsMarshalErrors(t *testing.T) {
+	t.Parallel()
+
+	_, err := prettyJSON(map[string]any{"limit": math.NaN()})
+
+	require.Error(t, err)
 }
 
 func captureStdout(t *testing.T, fn func()) string {

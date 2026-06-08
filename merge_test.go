@@ -1,7 +1,6 @@
 package jsonmerge
 
 import (
-	"errors"
 	"math"
 	"testing"
 
@@ -143,7 +142,7 @@ func TestStringDocumentsAreScalars(t *testing.T) {
 
 		_, err := Parse([]byte(`{"name": invalid}`))
 		require.Error(t, err)
-		require.True(t, errors.Is(err, ErrInvalidJSON))
+		require.ErrorIs(t, err, ErrInvalidJSON)
 	})
 
 	t.Run("malformed json-looking string is a string value", func(t *testing.T) {
@@ -162,7 +161,7 @@ func TestStringDocumentsAreScalars(t *testing.T) {
 		patch := mustNewPatch(t, map[string]any{"name": "Jane"})
 		_, err := Apply("draft", patch)
 		require.Error(t, err)
-		require.True(t, errors.Is(err, ErrCannotRepresent))
+		require.ErrorIs(t, err, ErrCannotRepresent)
 	})
 }
 
@@ -182,7 +181,7 @@ func TestInvalidJSONTextDocumentFails(t *testing.T) {
 	patch := mustParsePatch(t, `{"name":"Jane"}`)
 	_, err := Apply(JSON(`{"name": invalid}`), patch)
 	require.Error(t, err)
-	require.True(t, errors.Is(err, ErrInvalidJSON))
+	require.ErrorIs(t, err, ErrInvalidJSON)
 }
 
 func TestSparsePatchAppliesToTypedTarget(t *testing.T) {
@@ -200,7 +199,10 @@ func TestSparsePatchAppliesToTypedTarget(t *testing.T) {
 	got, err := Apply(user, patch)
 	require.NoError(t, err)
 
-	assert.Equal(t, User{Name: "Jane", Email: "john@example.com", Age: 30}, got)
+	want := User{Name: "Jane", Email: "john@example.com", Age: 30}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Apply() returned unexpected user (-want +got):\n%s", diff)
+	}
 }
 
 func TestProjectionMustBeLossless(t *testing.T) {
@@ -220,7 +222,7 @@ func TestProjectionMustBeLossless(t *testing.T) {
 		patch := mustNewPatch(t, map[string]any{"role": "admin"})
 		_, err := Apply(user, patch)
 		require.Error(t, err)
-		require.True(t, errors.Is(err, ErrCannotRepresent))
+		require.ErrorIs(t, err, ErrCannotRepresent)
 	})
 
 	t.Run("deleted non-omitempty field fails", func(t *testing.T) {
@@ -229,7 +231,7 @@ func TestProjectionMustBeLossless(t *testing.T) {
 		patch := mustNewPatch(t, map[string]any{"age": nil})
 		_, err := Apply(user, patch)
 		require.Error(t, err)
-		require.True(t, errors.Is(err, ErrCannotRepresent))
+		require.ErrorIs(t, err, ErrCannotRepresent)
 	})
 
 	t.Run("deleted omitempty field succeeds", func(t *testing.T) {
@@ -239,7 +241,10 @@ func TestProjectionMustBeLossless(t *testing.T) {
 		got, err := Apply(user, patch)
 		require.NoError(t, err)
 
-		assert.Equal(t, User{Name: "John", Age: 30}, got)
+		want := User{Name: "John", Age: 30}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("Apply() returned unexpected user (-want +got):\n%s", diff)
+		}
 	})
 }
 
@@ -378,7 +383,7 @@ func TestInvalidGoValueFails(t *testing.T) {
 
 	_, err := NewPatch(map[string]any{"limit": math.NaN()})
 	require.Error(t, err)
-	require.True(t, errors.Is(err, ErrInvalidValue))
+	require.ErrorIs(t, err, ErrInvalidValue)
 }
 
 func TestMapProjectionRejectsNonObjectResults(t *testing.T) {
@@ -387,7 +392,7 @@ func TestMapProjectionRejectsNonObjectResults(t *testing.T) {
 	patch := mustNewPatch(t, "scalar")
 	_, err := Apply(map[string]any{"name": "John"}, patch)
 	require.Error(t, err)
-	require.True(t, errors.Is(err, ErrCannotRepresent))
+	require.ErrorIs(t, err, ErrCannotRepresent)
 }
 
 func BenchmarkApplyMap(b *testing.B) {

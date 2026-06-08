@@ -45,9 +45,22 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Println("Original:", prettyJSON(original))
-	fmt.Println("Patch:   ", prettyJSON(patchValue))
-	fmt.Println("Result:  ", prettyJSON(result))
+	originalJSON, err := prettyJSON(original)
+	if err != nil {
+		log.Fatal(err)
+	}
+	patchJSON, err := prettyJSON(patchValue)
+	if err != nil {
+		log.Fatal(err)
+	}
+	resultJSON, err := prettyJSON(result)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Original:", originalJSON)
+	fmt.Println("Patch:   ", patchJSON)
+	fmt.Println("Result:  ", resultJSON)
 
 	fmt.Println("\n=== Key Behaviors ===")
 	fmt.Println("• Objects are merged recursively")
@@ -56,7 +69,10 @@ func main() {
 	fmt.Println("• New fields are added")
 }
 
-func prettyJSON(v any) string {
-	data, _ := json.Marshal(v, jsontext.Multiline(true))
-	return string(data)
+func prettyJSON(v any) (string, error) {
+	data, err := json.Marshal(v, jsontext.Multiline(true))
+	if err != nil {
+		return "", fmt.Errorf("marshal json: %w", err)
+	}
+	return string(data), nil
 }
