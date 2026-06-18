@@ -1,6 +1,6 @@
 package jsonmerge
 
-// Patch is an immutable, canonical JSON Merge Patch value.
+// Patch is an immutable JSON Merge Patch value.
 type Patch struct {
 	value any
 }

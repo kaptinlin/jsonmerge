@@ -1,7 +1,9 @@
 package jsonmerge
 
 import (
+	"errors"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/go-json-experiment/json"
@@ -9,6 +11,36 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type codedID string
+
+func (id codedID) MarshalJSON() ([]byte, error) {
+	return json.Marshal("id:" + string(id))
+}
+
+func (id *codedID) UnmarshalJSON(data []byte) error {
+	var encoded string
+	if err := json.Unmarshal(data, &encoded); err != nil {
+		return err
+	}
+	value, ok := strings.CutPrefix(encoded, "id:")
+	if !ok {
+		return errors.New("missing id prefix")
+	}
+	*id = codedID(value)
+	return nil
+}
+
+type lossyID string
+
+func (id lossyID) MarshalJSON() ([]byte, error) {
+	return json.Marshal("fixed")
+}
+
+func (id *lossyID) UnmarshalJSON([]byte) error {
+	*id = "fixed"
+	return nil
+}
 
 func TestApplyRFCAppendixA(t *testing.T) {
 	t.Parallel()
@@ -175,6 +207,64 @@ func TestJSONTextDocumentsAreExplicit(t *testing.T) {
 	assert.JSONEq(t, `{"name":"Jane","age":30}`, string(got))
 }
 
+func TestEncodedJSONNumbersDoNotLosePrecision(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "large integer",
+			want: `{"id":9007199254740993}`,
+		},
+		{
+			name: "long decimal",
+			want: `{"amount":0.12345678901234567890123456789}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			patch := mustParsePatch(t, tt.want)
+			patchData, err := patch.MarshalJSON()
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, string(patchData))
+
+			got, err := Apply(JSON(`{}`), patch)
+			require.NoError(t, err)
+			assert.Equal(t, JSON(tt.want), got)
+		})
+	}
+}
+
+func TestPatchMarshalJSONIsStable(t *testing.T) {
+	t.Parallel()
+
+	patch := mustNewPatch(t, map[string]any{"b": 2, "a": 1})
+
+	for range 10 {
+		data, err := patch.MarshalJSON()
+		require.NoError(t, err)
+		assert.Equal(t, `{"a":1,"b":2}`, string(data))
+	}
+}
+
+func TestDiffPreservesEncodedJSONNumbers(t *testing.T) {
+	t.Parallel()
+
+	target := JSON(`{"id":9007199254740993,"amount":0.12345678901234567890123456789}`)
+
+	patch, err := Diff(JSON(`{"id":0}`), target)
+	require.NoError(t, err)
+
+	data, err := patch.MarshalJSON()
+	require.NoError(t, err)
+	assert.Equal(t, `{"amount":0.12345678901234567890123456789,"id":9007199254740993}`, string(data))
+}
+
 func TestInvalidJSONTextDocumentFails(t *testing.T) {
 	t.Parallel()
 
@@ -246,9 +336,79 @@ func TestProjectionMustBeLossless(t *testing.T) {
 			t.Errorf("Apply() returned unexpected user (-want +got):\n%s", diff)
 		}
 	})
+
+	t.Run("named map succeeds when lossless", func(t *testing.T) {
+		t.Parallel()
+
+		type limits map[string]int
+
+		patch := mustParsePatch(t, `{"requests":20}`)
+		got, err := Apply(limits{"requests": 10}, patch)
+		require.NoError(t, err)
+
+		want := limits{"requests": 20}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("Apply() returned unexpected limits (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("named slice succeeds when lossless", func(t *testing.T) {
+		t.Parallel()
+
+		type tags []string
+
+		patch := mustNewPatch(t, tags{"stable", "small"})
+		got, err := Apply(tags{"draft"}, patch)
+		require.NoError(t, err)
+
+		want := tags{"stable", "small"}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("Apply() returned unexpected tags (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("numeric narrowing fails", func(t *testing.T) {
+		t.Parallel()
+
+		type counter struct {
+			N int8 `json:"n"`
+		}
+
+		patch := mustParsePatch(t, `{"n":128}`)
+		_, err := Apply(counter{}, patch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrCannotRepresent)
+	})
+
+	t.Run("null into non-nullable target fails", func(t *testing.T) {
+		t.Parallel()
+
+		patch := mustParsePatch(t, `null`)
+		_, err := Apply(1, patch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrCannotRepresent)
+	})
+
+	t.Run("custom json type succeeds when roundtrip is lossless", func(t *testing.T) {
+		t.Parallel()
+
+		patch := mustParsePatch(t, `"id:next"`)
+		got, err := Apply(codedID("old"), patch)
+		require.NoError(t, err)
+		assert.Equal(t, codedID("next"), got)
+	})
+
+	t.Run("custom json type fails when roundtrip is lossy", func(t *testing.T) {
+		t.Parallel()
+
+		patch := mustParsePatch(t, `"original"`)
+		_, err := Apply(lossyID("old"), patch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrCannotRepresent)
+	})
 }
 
-func TestDiffUsesCanonicalEquality(t *testing.T) {
+func TestDiffUsesNormalizedJSONEquality(t *testing.T) {
 	t.Parallel()
 
 	type counter struct {
@@ -299,6 +459,102 @@ func TestDiffPatchRoundTripsAcrossRepresentations(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.JSONEq(t, string(target), mustMarshalJSON(t, got))
+}
+
+func TestDiffPatchLaw(t *testing.T) {
+	t.Parallel()
+
+	type counter struct {
+		N int `json:"n"`
+	}
+
+	tests := []struct {
+		name   string
+		source any
+		target any
+	}{
+		{
+			name:   "object map",
+			source: map[string]any{"name": "John", "age": 30},
+			target: map[string]any{"name": "Jane", "age": 30},
+		},
+		{
+			name:   "array json text",
+			source: JSON(`[1,2]`),
+			target: JSON(`[1,2,3]`),
+		},
+		{
+			name:   "scalar string",
+			source: "draft",
+			target: "published",
+		},
+		{
+			name:   "null json text",
+			source: JSON(`{"enabled":true}`),
+			target: JSON(`null`),
+		},
+		{
+			name:   "bytes",
+			source: []byte(`{"n":1}`),
+			target: []byte(`{"n":2}`),
+		},
+		{
+			name:   "struct",
+			source: counter{N: 1},
+			target: counter{N: 2},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			patch, err := Diff(tt.source, tt.target)
+			require.NoError(t, err)
+
+			got, err := Apply(tt.source, patch)
+			require.NoError(t, err)
+
+			assert.JSONEq(t, mustJSONDocument(t, tt.target), mustJSONDocument(t, got))
+		})
+	}
+}
+
+func TestDiffEqualNonObjectRootsReturnReplacementPatch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		source any
+		target any
+		want   string
+	}{
+		{
+			name:   "scalar",
+			source: "same",
+			target: "same",
+			want:   `"same"`,
+		},
+		{
+			name:   "array",
+			source: JSON(`[1,2]`),
+			target: JSON(`[1,2]`),
+			want:   `[1,2]`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			patch, err := Diff(tt.source, tt.target)
+			require.NoError(t, err)
+
+			data, err := patch.MarshalJSON()
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, string(data))
+		})
+	}
 }
 
 func TestApplyDoesNotMutateCallerOwnedMaps(t *testing.T) {
@@ -477,4 +733,17 @@ func mustMarshalJSON(tb testing.TB, value any) string {
 		tb.Fatalf("json.Marshal(%T) failed: %v", value, err)
 	}
 	return string(data)
+}
+
+func mustJSONDocument(tb testing.TB, value any) string {
+	tb.Helper()
+
+	switch typed := value.(type) {
+	case JSON:
+		return string(typed)
+	case []byte:
+		return string(typed)
+	default:
+		return mustMarshalJSON(tb, value)
+	}
 }

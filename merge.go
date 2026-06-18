@@ -5,10 +5,13 @@
 package jsonmerge
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/go-json-experiment/json"
+	jsonv1 "github.com/go-json-experiment/json/v1"
 	"github.com/kaptinlin/deepclone"
 )
 
@@ -32,22 +35,22 @@ func Parse(data []byte) (Patch, error) {
 	return Patch{value: value}, nil
 }
 
-// NewPatch converts value into a canonical merge patch.
+// NewPatch converts value into a merge patch.
 func NewPatch(value any) (Patch, error) {
-	canonical, err := canonicalize(value)
+	normalized, err := normalizeJSON(value)
 	if err != nil {
 		return Patch{}, fmt.Errorf("new patch: %w", err)
 	}
-	return Patch{value: canonical}, nil
+	return Patch{value: normalized}, nil
 }
 
 // Apply applies patch to target according to RFC 7386.
 func Apply[T any](target T, patch Patch) (T, error) {
 	var zero T
 
-	targetValue, err := canonicalize(target)
+	targetValue, err := normalizeJSON(target)
 	if err != nil {
-		return zero, fmt.Errorf("canonicalize target: %w", err)
+		return zero, fmt.Errorf("normalize target: %w", err)
 	}
 
 	merged, err := applyPatch(targetValue, patch.value)
@@ -65,14 +68,14 @@ func Apply[T any](target T, patch Patch) (T, error) {
 
 // Diff returns a merge patch that transforms source into target.
 func Diff(source, target any) (Patch, error) {
-	sourceValue, err := canonicalize(source)
+	sourceValue, err := normalizeJSON(source)
 	if err != nil {
-		return Patch{}, fmt.Errorf("canonicalize source: %w", err)
+		return Patch{}, fmt.Errorf("normalize source: %w", err)
 	}
 
-	targetValue, err := canonicalize(target)
+	targetValue, err := normalizeJSON(target)
 	if err != nil {
-		return Patch{}, fmt.Errorf("canonicalize target: %w", err)
+		return Patch{}, fmt.Errorf("normalize target: %w", err)
 	}
 
 	patchValue, err := generatePatch(sourceValue, targetValue, true)
@@ -83,16 +86,16 @@ func Diff(source, target any) (Patch, error) {
 	return Patch{value: patchValue}, nil
 }
 
-// MarshalJSON returns the canonical JSON encoding of p.
+// MarshalJSON returns the JSON encoding of p.
 func (p Patch) MarshalJSON() ([]byte, error) {
-	data, err := json.Marshal(p.value)
+	data, err := marshalJSON(p.value)
 	if err != nil {
 		return nil, wrapError("marshal patch", ErrInvalidValue, err)
 	}
 	return data, nil
 }
 
-func canonicalize(value any) (any, error) {
+func normalizeJSON(value any) (any, error) {
 	switch typed := value.(type) {
 	case Patch:
 		return cloneJSONValue(typed.value)
@@ -110,23 +113,35 @@ func canonicalize(value any) (any, error) {
 		return value, nil
 	}
 
-	data, err := json.Marshal(value)
+	data, err := marshalJSON(value)
 	if err != nil {
 		return nil, wrapError("marshal value", ErrInvalidValue, err)
 	}
 
-	var result any
-	if err := json.Unmarshal(data, &result); err != nil {
+	result, err := parseJSON(data)
+	if err != nil {
 		return nil, wrapError("unmarshal value", ErrInvalidValue, err)
 	}
 	return result, nil
 }
 
 func parseJSON(data []byte) (any, error) {
+	decoder := jsonv1.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+
 	var result any
-	if err := json.Unmarshal(data, &result); err != nil {
+	if err := decoder.Decode(&result); err != nil {
 		return nil, wrapError("unmarshal json text", ErrInvalidJSON, err)
 	}
+
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			err = errors.New("multiple json values")
+		}
+		return nil, wrapError("unmarshal json text", ErrInvalidJSON, err)
+	}
+
 	return result, nil
 }
 
@@ -135,13 +150,13 @@ func project[T any](value any) (T, error) {
 
 	switch any(zero).(type) {
 	case JSON:
-		data, err := json.Marshal(value)
+		data, err := marshalJSON(value)
 		if err != nil {
 			return zero, wrapError("marshal json text result", ErrInvalidValue, err)
 		}
 		return any(JSON(data)).(T), nil
 	case []byte:
-		data, err := json.Marshal(value)
+		data, err := marshalJSON(value)
 		if err != nil {
 			return zero, wrapError("marshal bytes result", ErrInvalidValue, err)
 		}
@@ -161,7 +176,7 @@ func project[T any](value any) (T, error) {
 		return any(cloned).(T), nil
 	}
 
-	data, err := json.Marshal(value)
+	data, err := marshalJSON(value)
 	if err != nil {
 		return zero, wrapError("marshal result", ErrInvalidValue, err)
 	}
@@ -171,7 +186,7 @@ func project[T any](value any) (T, error) {
 		return zero, wrapError("unmarshal result", ErrCannotRepresent, err)
 	}
 
-	roundtrip, err := canonicalize(result)
+	roundtrip, err := normalizeJSON(result)
 	if err != nil {
 		return zero, wrapError("verify result", ErrCannotRepresent, err)
 	}
@@ -287,6 +302,9 @@ func equalJSON(a, b any) bool {
 	case float64:
 		bv, ok := b.(float64)
 		return ok && av == bv
+	case jsonv1.Number:
+		bv, ok := b.(jsonv1.Number)
+		return ok && av == bv
 	case string:
 		bv, ok := b.(string)
 		return ok && av == bv
@@ -324,6 +342,10 @@ func cloneJSONValue[T any](value T) (T, error) {
 		return value, wrapError("clone json value", ErrInvalidValue, err)
 	}
 	return cloned, nil
+}
+
+func marshalJSON(value any) ([]byte, error) {
+	return json.Marshal(value, json.Deterministic(true))
 }
 
 func wrapError(stage string, sentinel, err error) error {

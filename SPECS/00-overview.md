@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`jsonmerge` implements RFC 7386 JSON Merge Patch for Go with explicit patch values and one JSON semantic model across supported document forms.
+`jsonmerge` implements RFC 7386 JSON Merge Patch for Go with explicit patch values and one normalized JSON semantic model across supported document forms.
 The package applies and diffs JSON values while returning the requested Go result type only when that projection is lossless.
 
 > **Why**: Merge-patch code often sits on configuration and API boundaries. Silent guessing or silent data loss is more expensive than an explicit constructor or a returned error.
@@ -30,7 +30,8 @@ Supported documents include `map[string]any`, `[]byte`, `JSON`, plain `string`, 
 2. Explicit data-form boundaries before clever coercion.
 3. Lossless projection before type-preservation convenience.
 4. Minimal public surface area.
-5. Performance changes justified by benchmarks.
+5. Stable JSON output before incidental map order.
+6. Performance changes justified by benchmarks.
 
 > **Why**: A small public API can stay stable only when each exported name earns its place.
 >
@@ -44,6 +45,8 @@ This package does not define:
 - Element-wise array merge semantics
 - Schema-aware merge behavior
 - Pluggable merge strategies
+- Public JSON AST inspection or mutation
+- Path grammar, path-based set/delete, or diff optimizer options
 - File IO, CLI behavior, redaction, source precedence, or config overlay policy
 
 > **Why**: Each feature changes the package from an RFC 7386 kernel into a broader transformation framework.
@@ -57,6 +60,7 @@ This package does not define:
 - Do not return a typed result after silently dropping JSON members.
 - Do not introduce public mutation semantics.
 - Do not introduce configurable array merge behavior; arrays replace as a whole.
+- Do not expose the normalized JSON model as public API.
 
 ## Acceptance Criteria
 

@@ -18,8 +18,11 @@ Contributors must preserve these semantics:
 - Non-object patches replace the target.
 - Arrays replace whole values.
 - Malformed JSON text fails fast.
+- Encoded JSON numbers are not silently rounded while carried as JSON values.
+- Patch JSON encoding is deterministic and compact.
 - Plain `string` is a JSON string scalar.
 - Typed results are returned only when projection is lossless.
+- Diff stays option-free and follows the normalized JSON model.
 
 > **Why**: These rules are the product contract, not implementation details.
 >
@@ -30,6 +33,7 @@ Contributors must preserve these semantics:
 Use the minimal sentinel set `ErrInvalidJSON`, `ErrInvalidValue`, and `ErrCannotRepresent`.
 Wrap underlying failures with `%w`, keep messages lowercase, and add only enough context to identify the failing stage.
 Prefer JSON conversion boundaries over custom representation-specific semantics.
+Projection checks must compare the requested Go result after marshaling it back into the normalized JSON model.
 
 > **Why**: Callers need stable error classes and contributors need one mental model for typed and untyped documents.
 >
@@ -39,6 +43,7 @@ Prefer JSON conversion boundaries over custom representation-specific semantics.
 
 Default behavior must preserve caller-owned maps.
 `Patch` must remain immutable and reusable.
+The normalized JSON model must remain private.
 Keep hot-path code direct where measurements show a benefit, but preserve the current semantic contract across common and fallback code paths.
 Benchmark before keeping a performance change.
 
@@ -51,16 +56,17 @@ Benchmark before keeping a performance change.
 For code changes, run `task test` and `task lint`.
 For markdown changes, keep `README.md`, `CLAUDE.md`, and `SPECS/**` aligned.
 For YAML changes such as `lefthook.yml`, run `task yamllint`.
-Tests must keep coverage for RFC Appendix A behavior, string scalar versus JSON text handling, conversion failures, lossless projection, map immutability, canonical diffing, examples, and benchmarks.
+Tests must keep coverage for RFC Appendix A behavior, string scalar versus JSON text handling, JSON number preservation, deterministic patch encoding, conversion failures, lossless projection, projection edge cases, map immutability, normalized diffing, diff law, examples, and benchmarks.
 
 > **Why**: This package's main failure modes are semantic drift and unchecked tooling gaps.
 >
-> **Rejected**: Spec-file layout tests and stale docs that silently drift from the canonical contracts.
+> **Rejected**: Spec-file layout tests and stale docs that silently drift from the current contracts.
 
 ## Forbidden
 
 - Do not add helper abstractions that obscure RFC semantics in hot code.
 - Do not define unused sentinel errors.
+- Do not add public mutation, path grammar, diff option, or JSON AST surfaces.
 - Do not let `SPECS/**` drift from package behavior.
 - Do not add `_test.go` files that only police `SPECS/` layout or `CLAUDE.md` links.
 - Do not keep stale rules when the code has intentionally moved on; rewrite the spec to match the better current contract.

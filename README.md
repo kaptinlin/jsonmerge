@@ -12,7 +12,8 @@ A small RFC 7386 JSON Merge Patch library for Go with explicit patch values and 
 - **Explicit patches**: Build a `Patch` with `Parse` for JSON text or `NewPatch` for Go values
 - **Clear string semantics**: Plain `string` is a JSON string scalar; use `[]byte` or `jsonmerge.JSON` for encoded JSON text
 - **Lossless results**: `Apply` returns the requested Go type when the merged JSON value can be represented without loss
-- **Canonical equality**: `Diff` and `Apply` share one JSON value model across maps, structs, bytes, and JSON text
+- **Shared JSON semantics**: `Diff` and `Apply` share one normalized JSON value model across maps, structs, bytes, and JSON text
+- **Stable patch encoding**: `Patch.MarshalJSON` emits deterministic compact JSON and preserves encoded JSON number literals
 - **Small API**: Learn `Patch`, `Parse`, `NewPatch`, `Apply`, `Diff`, and `MarshalJSON`
 
 ## Installation
@@ -77,7 +78,7 @@ If the merged JSON value cannot be represented by the requested Go type, `Apply`
 | `Parse(data []byte) (Patch, error)` | Parse encoded JSON text as a merge patch |
 | `NewPatch(value any) (Patch, error)` | Convert a Go value into a merge patch |
 | `Apply[T any](target T, patch Patch) (T, error)` | Apply a patch and return `T` when projection is lossless |
-| `Diff(source, target any) (Patch, error)` | Build a patch that transforms source into target in the canonical JSON model |
+| `Diff(source, target any) (Patch, error)` | Build a patch that transforms source into target in the normalized JSON model |
 | `(Patch).MarshalJSON() ([]byte, error)` | Encode a patch for storage or transport |
 
 ## Struct Targets
@@ -115,6 +116,7 @@ fmt.Println(doc)
 ```
 
 Malformed text fails when parsed as text. The same bytes inside a Go `string` are just a string scalar when passed to `NewPatch`.
+Encoded JSON number literals are preserved through `Parse`, `Apply`, and `Patch.MarshalJSON`; large integers are not rounded while carried as JSON text.
 
 ## Error Handling
 
