@@ -22,7 +22,7 @@ A small RFC 7386 JSON Merge Patch library for Go with explicit patch values and 
 go get github.com/kaptinlin/jsonmerge
 ```
 
-Requires Go 1.26.3 or newer.
+Requires Go 1.26.4 or newer.
 
 ## Quick Start
 

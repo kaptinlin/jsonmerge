@@ -76,3 +76,4 @@ reports/
 reports/*
 .meetings/
 .plans
+.codegraph/
