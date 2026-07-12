@@ -32,6 +32,7 @@ jsonmerge/
 ├── conversion_test.go
 ├── example_test.go  # Executable examples checked by go test
 ├── examples/        # Runnable demos for map, struct, JSON text, and byte documents
+├── .references/     # Pinned upstream implementations used as design evidence
 └── SPECS/           # Canonical package contracts and coding standards
 ```
 
@@ -45,8 +46,9 @@ Workflow:
 
 1. Identify the relevant spec files from the index below.
 2. Verify the current code matches the spec before updating docs.
-3. If code and spec intentionally change, update the spec and code together.
-4. Keep `AGENTS.md` as a symlink to `CLAUDE.md`.
+3. For implementation work, inspect at least two relevant projects from `.references/`; borrow proven lessons, not their public shape.
+4. If code and spec intentionally change, update the spec and code together.
+5. Keep `AGENTS.md` as a symlink to `CLAUDE.md`.
 
 ## Agent Operating Rules
 
@@ -68,6 +70,14 @@ Workflow:
 | [`SPECS/20-api-specs.md`](SPECS/20-api-specs.md) | Public API and error contracts |
 | [`SPECS/40-architecture-specs.md`](SPECS/40-architecture-specs.md) | Package layout, execution pipeline, and dependencies |
 | [`SPECS/50-coding-standards.md`](SPECS/50-coding-standards.md) | Contribution rules, tests, and lint requirements |
+
+## References Index
+
+| Reference | Use |
+| --- | --- |
+| [`.references/json-patch/`](.references/json-patch/) | RFC 7386 apply/diff behavior and parser-owned value handling |
+| [`.references/jsondiff/`](.references/jsondiff/) | Diff generation, replay-based testing, and benchmark structure |
+| [`.references/sjson/`](.references/sjson/) | Copy versus in-place ownership trade-offs; not an input-validation model |
 
 ## Design Philosophy
 
@@ -98,7 +108,8 @@ Workflow:
 - Keep `Patch` immutable and reusable.
 - Keep plain `string` as a JSON string scalar; use `[]byte` or `JSON` for encoded JSON text.
 - Return `ErrCannotRepresent` when result projection would silently lose JSON data.
-- Wrap failures with `ErrInvalidJSON`, `ErrInvalidValue`, or `ErrCannotRepresent`, and keep the sentinel in the error chain with `%w`.
+- Return `ErrCannotRepresentPatch` when RFC 7386 cannot create the requested object-member `null` state.
+- Wrap failures with the matching public sentinel and keep it in the error chain with `%w`.
 - Benchmark hot-path changes and rerun compliance tests when touching apply, diff, canonicalization, projection, or comparison logic.
 - Keep `AGENTS.md` as a symlink to `CLAUDE.md`; do not duplicate the file.
 
@@ -129,7 +140,6 @@ Workflow:
 ## Dependencies
 
 - `github.com/go-json-experiment/json` — marshal and unmarshal at the conversion boundary.
-- `github.com/kaptinlin/deepclone` — clone canonical JSON values while preserving patch immutability.
 - `github.com/google/go-cmp` — structural comparisons in tests.
 - `github.com/stretchr/testify` — test assertions only.
 

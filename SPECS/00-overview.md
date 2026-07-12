@@ -16,7 +16,7 @@ The package defines four operations:
 - `Parse` parses encoded JSON text into a `Patch`.
 - `NewPatch` converts a Go value into a `Patch`.
 - `Apply` applies a `Patch` to a document.
-- `Diff` derives a `Patch` that transforms one JSON value into another.
+- `Diff` derives a `Patch` when RFC 7386 can represent the requested transformation.
 
 Supported documents include `map[string]any`, `[]byte`, `JSON`, plain `string`, structs, typed Go values, scalar values, and `nil` when the result can be represented by the requested type.
 

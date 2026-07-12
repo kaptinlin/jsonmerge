@@ -274,6 +274,60 @@ func TestInvalidJSONTextDocumentFails(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidJSON)
 }
 
+func TestEncodedJSONRejectsAmbiguousText(t *testing.T) {
+	t.Parallel()
+
+	emptyPatch := mustParsePatch(t, `{}`)
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{
+			name: "duplicate root names in patch",
+			run: func() error {
+				_, err := Parse([]byte(`{"role":"user","role":"admin"}`))
+				return err
+			},
+		},
+		{
+			name: "duplicate nested names in json document",
+			run: func() error {
+				_, err := Apply(JSON(`{"user":{"role":"user","role":"admin"}}`), emptyPatch)
+				return err
+			},
+		},
+		{
+			name: "invalid utf-8 string in byte document",
+			run: func() error {
+				_, err := Apply([]byte("{\"value\":\"\xff\"}"), emptyPatch)
+				return err
+			},
+		},
+		{
+			name: "invalid utf-8 name in diff source",
+			run: func() error {
+				_, err := Diff(JSON("{\"\xff\":1}"), JSON(`{}`))
+				return err
+			},
+		},
+		{
+			name: "invalid utf-8 value in diff target",
+			run: func() error {
+				_, err := Diff(JSON(`{}`), JSON("{\"value\":\"\xff\"}"))
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.ErrorIs(t, tt.run(), ErrInvalidJSON)
+		})
+	}
+}
+
 func TestSparsePatchAppliesToTypedTarget(t *testing.T) {
 	t.Parallel()
 
@@ -520,6 +574,85 @@ func TestDiffPatchLaw(t *testing.T) {
 	}
 }
 
+func TestDiffNullMemberRepresentability(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		source  JSON
+		target  JSON
+		wantErr bool
+	}{
+		{
+			name:    "missing member",
+			source:  JSON(`{}`),
+			target:  JSON(`{"a":null}`),
+			wantErr: true,
+		},
+		{
+			name:    "changed member",
+			source:  JSON(`{"a":1}`),
+			target:  JSON(`{"a":null}`),
+			wantErr: true,
+		},
+		{
+			name:    "non-object source",
+			source:  JSON(`1`),
+			target:  JSON(`{"a":null}`),
+			wantErr: true,
+		},
+		{
+			name:    "ancestor replacement",
+			source:  JSON(`{"a":1}`),
+			target:  JSON(`{"a":{"b":null}}`),
+			wantErr: true,
+		},
+		{
+			name:    "missing ancestor",
+			source:  JSON(`{}`),
+			target:  JSON(`{"a":{"b":null}}`),
+			wantErr: true,
+		},
+		{
+			name:   "existing null member",
+			source: JSON(`{"a":{"b":null}}`),
+			target: JSON(`{"a":{"b":null},"c":1}`),
+		},
+		{
+			name:   "delete null member",
+			source: JSON(`{"a":null}`),
+			target: JSON(`{}`),
+		},
+		{
+			name:   "null inside array",
+			source: JSON(`{}`),
+			target: JSON(`{"a":[null]}`),
+		},
+		{
+			name:   "root null",
+			source: JSON(`{}`),
+			target: JSON(`null`),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			patch, err := Diff(tt.source, tt.target)
+			if tt.wantErr {
+				require.ErrorIs(t, err, ErrCannotRepresentPatch)
+				return
+			}
+			require.NoError(t, err)
+
+			got, err := Apply(tt.source, patch)
+			require.NoError(t, err)
+			assert.JSONEq(t, string(tt.target), string(got))
+		})
+	}
+}
+
 func TestDiffEqualNonObjectRootsReturnReplacementPatch(t *testing.T) {
 	t.Parallel()
 
@@ -632,6 +765,67 @@ func TestApplyDoesNotAliasPatchValues(t *testing.T) {
 	if diff := cmp.Diff(want, next); diff != "" {
 		t.Fatalf("Apply() reused mutated patch values (-want +got):\n%s", diff)
 	}
+}
+
+func TestDiffPatchDoesNotAliasInputsOrResults(t *testing.T) {
+	t.Parallel()
+
+	source := map[string]any{
+		"profile": map[string]any{
+			"flags": []any{map[string]any{"name": "old"}},
+		},
+	}
+	target := map[string]any{
+		"profile": map[string]any{
+			"flags": []any{map[string]any{"name": "new"}},
+		},
+	}
+	patch, err := Diff(source, target)
+	require.NoError(t, err)
+
+	source["profile"].(map[string]any)["flags"].([]any)[0].(map[string]any)["name"] = "changed"
+	target["profile"].(map[string]any)["flags"].([]any)[0].(map[string]any)["name"] = "changed"
+
+	base := map[string]any{
+		"profile": map[string]any{
+			"flags": []any{map[string]any{"name": "old"}},
+		},
+	}
+	first, err := Apply(base, patch)
+	require.NoError(t, err)
+	first["profile"].(map[string]any)["flags"].([]any)[0].(map[string]any)["name"] = "changed"
+
+	second, err := Apply(base, patch)
+	require.NoError(t, err)
+	want := map[string]any{
+		"profile": map[string]any{
+			"flags": []any{map[string]any{"name": "new"}},
+		},
+	}
+	if diff := cmp.Diff(want, second); diff != "" {
+		t.Fatalf("Diff patch retained mutable aliases (-want +got):\n%s", diff)
+	}
+}
+
+func TestCloneJSONValueRejectsUnknownType(t *testing.T) {
+	t.Parallel()
+
+	_, err := cloneJSONValue(map[int]int{1: 2})
+	require.ErrorIs(t, err, ErrInvalidValue)
+}
+
+func TestCloneJSONValueCopiesCanonicalContainers(t *testing.T) {
+	t.Parallel()
+
+	value, err := parseJSON([]byte(`{"items":[null,true,9007199254740993,"value",{"nested":false}]}`))
+	require.NoError(t, err)
+	cloned, err := cloneJSONValue(value)
+	require.NoError(t, err)
+
+	cloned.(map[string]any)["items"].([]any)[4].(map[string]any)["nested"] = true
+	data, err := marshalJSON(value)
+	require.NoError(t, err)
+	assert.Equal(t, `{"items":[null,true,9007199254740993,"value",{"nested":false}]}`, string(data))
 }
 
 func TestInvalidGoValueFails(t *testing.T) {

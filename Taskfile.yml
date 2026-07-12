@@ -142,7 +142,7 @@ tasks:
     desc: Run benchmarks
     cmds:
       - echo "Running benchmarks..."
-      - go test -race -bench=. -benchmem ./...
+      - go test -bench=. -benchmem ./...
 
   lint:
     desc: Run all linters

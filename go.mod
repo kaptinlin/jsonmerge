@@ -5,7 +5,6 @@ go 1.26.4
 require (
 	github.com/go-json-experiment/json v0.0.0-20260601182631-00ed12fed2a6
 	github.com/google/go-cmp v0.7.0
-	github.com/kaptinlin/deepclone v0.2.17-0.20260603075657-1d294e385e78
 )
 
 require (

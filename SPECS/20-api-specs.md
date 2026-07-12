@@ -3,7 +3,7 @@
 ## Patch Construction
 
 `Parse(data []byte) (Patch, error)` parses encoded JSON text as a merge patch.
-Malformed text returns an error matching `ErrInvalidJSON`.
+Malformed text, duplicate object names, and invalid UTF-8 return an error matching `ErrInvalidJSON`.
 
 `NewPatch(value any) (Patch, error)` converts a Go value into a patch.
 Values that cannot be represented as JSON return an error matching `ErrInvalidValue`.
@@ -27,7 +27,8 @@ Projection fails with `ErrCannotRepresent` when the requested type would narrow 
 
 ## Diff Contract
 
-`Diff(source, target any) (Patch, error)` returns a patch that transforms `source` into `target` in the normalized JSON model.
+`Diff(source, target any) (Patch, error)` returns a patch that transforms `source` into `target` in the normalized JSON model when RFC 7386 can represent the change.
+It returns `ErrCannotRepresentPatch` when the target requires creating or replacing an object member with JSON `null`.
 The returned patch is independent of the static type of either input.
 `Diff` has no public options: arrays and scalar roots are replacement values, object roots are member patches, and equal object roots return `{}`.
 
@@ -53,6 +54,7 @@ Failures wrap one of these sentinel errors so callers can use `errors.Is`:
 - `ErrInvalidJSON`
 - `ErrInvalidValue`
 - `ErrCannotRepresent`
+- `ErrCannotRepresentPatch`
 
 Context may be added around the sentinel, but the sentinel must remain in the error chain.
 Callers must not match exact error strings.

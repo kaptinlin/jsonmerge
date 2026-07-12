@@ -25,6 +25,7 @@ The package accepts these document forms:
 - other JSON-marshalable Go values, converted through JSON before apply or diff
 
 Invalid JSON text in `[]byte` or `JSON` is rejected with `ErrInvalidJSON`.
+JSON text must use valid UTF-8 and unique names within each object; ambiguous text is rejected before normalization.
 Plain `string` is never parsed as JSON text; a JSON-looking string is still a JSON string scalar.
 
 > **Why**: The call site must reveal whether a value is text, scalar data, or a patch. Guessing makes malformed JSON text look like valid user data.
@@ -67,9 +68,11 @@ Structs and other typed Go values follow their JSON encoding:
 - Non-object targets produce the target value as the patch.
 - Object targets produce only changed or added members.
 - Removed members are encoded as `nil`.
+- A target object member containing `null` is representable only when the source already contains `null` at the same member path and every ancestor on that path remains an object.
+- `Diff` returns `ErrCannotRepresentPatch` when reaching the target would require creating or replacing an object member with `null`.
 - Equal object documents produce an empty object patch.
 - Equal scalar and array roots produce the root value as a replacement patch because RFC 7386 has no universal non-object no-op patch.
-- Applying the returned patch to the source reaches the target in the normalized JSON model.
+- Applying every successfully returned patch to the source reaches the target in the normalized JSON model.
 
 > **Why**: A generated patch should round-trip through `Apply` in the shared JSON model without representation-specific equality.
 >

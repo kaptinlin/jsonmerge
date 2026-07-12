@@ -42,7 +42,7 @@ The model is private: callers can construct, apply, diff, and marshal patches, b
 
 ## Diff Pipeline
 
-`Diff` converts source and target into normalized JSON values, computes a minimal merge patch for object targets, and returns a `Patch`.
+`Diff` converts source and target into normalized JSON values, computes an object-member merge patch for object targets, and returns a `Patch`.
 Equal object documents produce an empty object patch.
 Equal scalar and array roots return the root value because a merge patch only has object-level no-op syntax.
 
@@ -55,13 +55,13 @@ Equal scalar and array roots return the root value because a merge patch only ha
 Production dependencies are limited to:
 
 - `github.com/go-json-experiment/json` for marshal and unmarshal operations, including its v1 decoder compatibility layer for raw JSON number literals
-- `github.com/kaptinlin/deepclone` for cloning normalized JSON values without local clone logic
 
+The private canonical clone handles only the closed normalized JSON value set and runs only when mutable values cross ownership boundaries.
 Tests may use `github.com/google/go-cmp/cmp` and `github.com/stretchr/testify`.
 
-> **Why**: The package needs one JSON boundary and one reusable cloning boundary so `Patch` values stay immutable without maintaining package-local clone code.
+> **Why**: JSON conversion needs one proven dependency. Canonical ownership is package knowledge and is smaller than a general-purpose cloning dependency.
 >
-> **Rejected**: Ad-hoc utility helpers for behavior owned by a focused dependency.
+> **Rejected**: Reflection-based general cloning, caller-visible mutation, and duplicate representation-specific copy paths.
 
 ## Performance Architecture
 

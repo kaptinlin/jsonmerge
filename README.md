@@ -78,7 +78,7 @@ If the merged JSON value cannot be represented by the requested Go type, `Apply`
 | `Parse(data []byte) (Patch, error)` | Parse encoded JSON text as a merge patch |
 | `NewPatch(value any) (Patch, error)` | Convert a Go value into a merge patch |
 | `Apply[T any](target T, patch Patch) (T, error)` | Apply a patch and return `T` when projection is lossless |
-| `Diff(source, target any) (Patch, error)` | Build a patch that transforms source into target in the normalized JSON model |
+| `Diff(source, target any) (Patch, error)` | Build a patch when RFC 7386 can represent the change; otherwise return `ErrCannotRepresentPatch` |
 | `(Patch).MarshalJSON() ([]byte, error)` | Encode a patch for storage or transport |
 
 ## Struct Targets
@@ -115,7 +115,7 @@ doc, _ = jsonmerge.Apply(doc, patch)
 fmt.Println(doc)
 ```
 
-Malformed text fails when parsed as text. The same bytes inside a Go `string` are just a string scalar when passed to `NewPatch`.
+Malformed text, duplicate object names, and invalid UTF-8 fail when parsed as text. The same bytes inside a Go `string` are just a string scalar when passed to `NewPatch`.
 Encoded JSON number literals are preserved through `Parse`, `Apply`, and `Patch.MarshalJSON`; large integers are not rounded while carried as JSON text.
 
 ## Error Handling
@@ -125,6 +125,7 @@ The package wraps failures with sentinel errors so callers can use `errors.Is`:
 - `ErrInvalidJSON`
 - `ErrInvalidValue`
 - `ErrCannotRepresent`
+- `ErrCannotRepresentPatch`
 
 ## Examples
 

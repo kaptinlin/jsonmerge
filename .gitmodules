@@ -1,3 +1,15 @@
 [submodule ".agents/skills"]
 	path = .agents/skills
 	url = https://github.com/agentable/golang-skills.git
+[submodule ".references/json-patch"]
+	path = .references/json-patch
+	url = https://github.com/evanphx/json-patch.git
+	ignore = untracked
+[submodule ".references/jsondiff"]
+	path = .references/jsondiff
+	url = https://github.com/wI2L/jsondiff.git
+	ignore = untracked
+[submodule ".references/sjson"]
+	path = .references/sjson
+	url = https://github.com/tidwall/sjson.git
+	ignore = untracked

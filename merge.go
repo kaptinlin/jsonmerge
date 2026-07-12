@@ -11,8 +11,8 @@ import (
 	"io"
 
 	"github.com/go-json-experiment/json"
+	"github.com/go-json-experiment/json/jsontext"
 	jsonv1 "github.com/go-json-experiment/json/v1"
-	"github.com/kaptinlin/deepclone"
 )
 
 var (
@@ -24,6 +24,9 @@ var (
 
 	// ErrCannotRepresent indicates a JSON result cannot be projected into the requested Go type.
 	ErrCannotRepresent = errors.New("cannot represent json value as requested type")
+
+	// ErrCannotRepresentPatch indicates no JSON Merge Patch can transform the source into the target.
+	ErrCannotRepresentPatch = errors.New("cannot represent target as json merge patch")
 )
 
 // Parse parses encoded JSON text as a merge patch.
@@ -66,7 +69,8 @@ func Apply[T any](target T, patch Patch) (T, error) {
 	return result, nil
 }
 
-// Diff returns a merge patch that transforms source into target.
+// Diff returns a merge patch that transforms source into target when RFC 7386 can represent the change.
+// It returns ErrCannotRepresentPatch when the target requires creating or replacing an object member with null.
 func Diff(source, target any) (Patch, error) {
 	sourceValue, err := normalizeJSON(source)
 	if err != nil {
@@ -126,6 +130,10 @@ func normalizeJSON(value any) (any, error) {
 }
 
 func parseJSON(data []byte) (any, error) {
+	if !jsontext.Value(data).IsValid() {
+		return nil, fmt.Errorf("validate json text: %w", ErrInvalidJSON)
+	}
+
 	decoder := jsonv1.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 
@@ -169,11 +177,7 @@ func project[T any](value any) (T, error) {
 		if !ok {
 			return zero, cannotRepresent("expected object result for map target, got %T", value)
 		}
-		cloned, err := cloneJSONValue(object)
-		if err != nil {
-			return zero, err
-		}
-		return any(cloned).(T), nil
+		return any(object).(T), nil
 	}
 
 	data, err := marshalJSON(value)
@@ -226,13 +230,10 @@ func applyPatch(target, patch any) (any, error) {
 func generatePatch(source, target any, preserveEmptyObject bool) (any, error) {
 	targetObj, targetIsObject := target.(map[string]any)
 	if !targetIsObject {
-		return cloneJSONValue(target)
+		return target, nil
 	}
 
-	sourceObj, sourceIsObject := source.(map[string]any)
-	if !sourceIsObject {
-		return cloneJSONValue(target)
-	}
+	sourceObj, _ := source.(map[string]any)
 
 	var patch map[string]any
 	setPatch := func(key string, value any) {
@@ -244,19 +245,17 @@ func generatePatch(source, target any, preserveEmptyObject bool) (any, error) {
 
 	for key, targetValue := range targetObj {
 		sourceValue, exists := sourceObj[key]
-		if !exists {
-			cloned, err := cloneJSONValue(targetValue)
-			if err != nil {
-				return nil, err
+		if targetValue == nil {
+			if !exists || sourceValue != nil {
+				return nil, fmt.Errorf("target member %q is null: %w", key, ErrCannotRepresentPatch)
 			}
-			setPatch(key, cloned)
 			continue
 		}
 
-		sourceObject, sourceIsObject := sourceValue.(map[string]any)
 		targetObject, targetIsObject := targetValue.(map[string]any)
-		if sourceIsObject && targetIsObject {
-			nestedPatch, err := generatePatch(sourceObject, targetObject, false)
+		if targetIsObject {
+			sourceObject, sourceIsObject := sourceValue.(map[string]any)
+			nestedPatch, err := generatePatch(sourceObject, targetObject, !sourceIsObject)
 			if err != nil {
 				return nil, err
 			}
@@ -266,12 +265,13 @@ func generatePatch(source, target any, preserveEmptyObject bool) (any, error) {
 			continue
 		}
 
+		if !exists {
+			setPatch(key, targetValue)
+			continue
+		}
+
 		if !equalJSON(sourceValue, targetValue) {
-			cloned, err := cloneJSONValue(targetValue)
-			if err != nil {
-				return nil, err
-			}
-			setPatch(key, cloned)
+			setPatch(key, targetValue)
 		}
 	}
 
@@ -336,12 +336,33 @@ func equalJSON(a, b any) bool {
 	}
 }
 
-func cloneJSONValue[T any](value T) (T, error) {
-	cloned, err := deepclone.Clone(value)
-	if err != nil {
-		return value, wrapError("clone json value", ErrInvalidValue, err)
+func cloneJSONValue(value any) (any, error) {
+	switch value := value.(type) {
+	case nil, bool, jsonv1.Number, string:
+		return value, nil
+	case []any:
+		cloned := make([]any, len(value))
+		for i, item := range value {
+			var err error
+			cloned[i], err = cloneJSONValue(item)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return cloned, nil
+	case map[string]any:
+		cloned := make(map[string]any, len(value))
+		for key, item := range value {
+			var err error
+			cloned[key], err = cloneJSONValue(item)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return cloned, nil
+	default:
+		return nil, wrapError("clone json value", ErrInvalidValue, fmt.Errorf("unexpected type %T", value))
 	}
-	return cloned, nil
 }
 
 func marshalJSON(value any) ([]byte, error) {

@@ -30,7 +30,7 @@ Contributors must preserve these semantics:
 
 ## Error and Conversion Rules
 
-Use the minimal sentinel set `ErrInvalidJSON`, `ErrInvalidValue`, and `ErrCannotRepresent`.
+Use the minimal sentinel set `ErrInvalidJSON`, `ErrInvalidValue`, `ErrCannotRepresent`, and `ErrCannotRepresentPatch`.
 Wrap underlying failures with `%w`, keep messages lowercase, and add only enough context to identify the failing stage.
 Prefer JSON conversion boundaries over custom representation-specific semantics.
 Projection checks must compare the requested Go result after marshaling it back into the normalized JSON model.
